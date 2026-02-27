@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class QuantityMeasurementAppTest {
 	
 	//inches and feet test
-
+ 
     @ParameterizedTest
     @EnumSource(Length.LengthUnit.class)
     void testEquality_SameValue_ForAllUnits(Length.LengthUnit unit) {
@@ -72,6 +72,38 @@ class QuantityMeasurementAppTest {
 
         assertTrue(feet.equals(inches));
     }
+    
+    @Test
+    void testYardAndInchesEquality_SameLength() {
+        Length yard = new Length(1.0, Length.LengthUnit.YARDS);
+        Length inches = new Length(36.0, Length.LengthUnit.INCHES);
+
+        assertTrue(yard.equals(inches));
+    }
+    
+    @Test
+    void testCentimeterAndInchesEquality_SameLength() {
+        Length cm = new Length(100.0, Length.LengthUnit.CENTIMETERS);
+        Length inches = new Length(39.3701, Length.LengthUnit.INCHES);
+
+        assertTrue(cm.equals(inches));
+    }
+    
+    @Test
+    void testFeetAndYardEquality_SameLength() {
+        Length feet = new Length(3.0, Length.LengthUnit.FEET);
+        Length yard = new Length(1.0, Length.LengthUnit.YARDS);
+
+        assertTrue(feet.equals(yard));
+    }
+    
+    @Test
+    void testCentimeterAndFeetEquality_SameLength() {
+        Length cm = new Length(30.48, Length.LengthUnit.CENTIMETERS);
+        Length feet = new Length(1.0, Length.LengthUnit.FEET);
+
+        assertTrue(cm.equals(feet));
+    }
 
     @Test
     void testFeetAndInchesEquality_DifferentLength() {
@@ -79,5 +111,37 @@ class QuantityMeasurementAppTest {
         Length inches = new Length(12.0, Length.LengthUnit.INCHES);
 
         assertFalse(feet.equals(inches));
+    }
+    
+    @Test
+    void testYardAndInchesEquality_DifferentLength() {
+        Length yard = new Length(2.0, Length.LengthUnit.YARDS);
+        Length inches = new Length(36.0, Length.LengthUnit.INCHES);
+
+        assertFalse(yard.equals(inches));
+    }
+    
+    @Test
+    void testCentimeterAndInchesEquality_DifferentLength() {
+        Length cm = new Length(1000.0, Length.LengthUnit.CENTIMETERS);
+        Length inches = new Length(39.3701, Length.LengthUnit.INCHES);
+
+        assertFalse(cm.equals(inches));
+    }
+    
+    @Test
+    void testFeetAndYardEquality_DifferentLength() {
+        Length feet = new Length(3.0, Length.LengthUnit.FEET);
+        Length yard = new Length(3.0, Length.LengthUnit.YARDS);
+
+        assertFalse(feet.equals(yard));
+    }
+    
+    @Test
+    void testCentimeterAndFeetEquality_DifferentLength() {
+        Length cm = new Length(30.48, Length.LengthUnit.CENTIMETERS);
+        Length feet = new Length(2.0, Length.LengthUnit.FEET);
+
+        assertFalse(cm.equals(feet));
     }
 }

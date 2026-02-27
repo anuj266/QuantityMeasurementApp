@@ -4,10 +4,13 @@ public class Length {
 	
 	private double value;
 	private LengthUnit unit;
+	private static final double EPSILON = 0.0001;
 	
 	public enum LengthUnit{
 		FEET(12.0),
-		INCHES(1.0);
+		INCHES(1.0),
+		YARDS(36),
+		CENTIMETERS(0.393701);
 		
 		private final double conversionFactor;
 		
@@ -36,7 +39,7 @@ public class Length {
 		if(this==obj) return true;
 		if(obj==null || getClass()!=obj.getClass()) return false;
 		Length other= (Length) obj;
-		return Double.compare(this.convertToBaseUnit(), other.convertToBaseUnit())==0;
+		return Math.abs(this.convertToBaseUnit()-other.convertToBaseUnit()) < EPSILON;
 	}
 	
 	@Override
