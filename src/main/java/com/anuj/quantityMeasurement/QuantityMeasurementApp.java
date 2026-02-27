@@ -1,76 +1,40 @@
 package com.anuj.quantityMeasurement;
 
-import java.util.Objects;
-
 public class QuantityMeasurementApp {
 	
-	public static class Feet{
-		private final double value;
-		
-		public Feet(double value) {
-			this.value=value;
-		}
-		
-		@Override
-		public boolean equals(Object obj) {
-			if(this==obj) return true;
-			if(obj==null || getClass()!=obj.getClass()) return false;
-			Feet other=(Feet) obj;
-			return Double.compare(this.value, other.value)==0;
-		}
-		
-		@Override
-		public int hashCode() {
-			return Objects.hash(value);
-		}
-	}
-	
-	public static class Inches{
-		private final double value;
-		
-		public Inches(double value) {
-			this.value=value;
-		}
-		
-		@Override
-		public boolean equals(Object obj) {
-			if(this==obj) return true;
-			if(obj==null || getClass()!=obj.getClass()) return false;
-			Inches other=(Inches) obj;
-			return Double.compare(this.value, other.value)==0;
-		}
-		
-		@Override
-		public int hashCode() {
-			return Objects.hash(value);
-		}
-	}
+	private static void printComparison(String label, Length l1, Length l2) {
+        System.out.print(label + ": ");
+        System.out.println(l1.equals(l2)
+                ? "Both lengths are equal (True)"
+                : "Both lengths are not equal (False)");
+    }
 	
 	public static void demonstrateFeetEquality() {
-		Feet feet1=new Feet(88.0);
-		Feet feet2=new Feet(88.0);
-		System.out.print("Feet: ");
-		if(feet1.equals(feet2)) {
-			System.out.println("Both quantity are equal (True)");
-		}else {
-			System.out.println("Both quantity are not equal (False)");
-		}
+		Length feet1=new Length(88.0,Length.LengthUnit.FEET);
+		Length feet2=new Length(88.0,Length.LengthUnit.FEET);
+		printComparison("Feet", feet1, feet2);
 	}
 	
 	public static void demonstrateInchesEquality() {
-		Inches inches1=new Inches(88.0);
-		Inches inches2=new Inches(88.0);
-		System.out.print("Inches: ");
-		if(inches1.equals(inches2)) {
-			System.out.println("Both quantity are equal (True)");
-		}else {
-			System.out.println("Both quantity are not equal (False)");
-		}
+		Length inches1=new Length(88.0,Length.LengthUnit.INCHES);
+		Length inches2=new Length(88.0,Length.LengthUnit.INCHES);
+		printComparison("Inches", inches1, inches2);
+	}
+	
+	public static void demonstrateFeetInchesComparison() {
+		Length inches=new Length(12.0,Length.LengthUnit.INCHES);
+		Length feet=new Length(1.0,Length.LengthUnit.FEET);
+		printComparison("Inches & Feet", inches, feet);
+	}
+	
+	public static boolean demonstrateLengthEquality(Length l1, Length l2) {
+		return l1.equals(l2);
 	}
 
 	public static void main(String[] args) {
 		demonstrateFeetEquality();
 		demonstrateInchesEquality();
+		demonstrateFeetInchesComparison();
 	}
 
 }
