@@ -2,11 +2,14 @@ package com.anuj.quantityMeasurement;
 
 import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import org.junit.jupiter.api.Test;
 
 class QuantityMeasurementAppTest {
+	
+	private static final double EPSILON = 1e-6;
 	
 	//inches and feet test
  
@@ -143,5 +146,44 @@ class QuantityMeasurementAppTest {
         Length feet = new Length(2.0, Length.LengthUnit.FEET);
 
         assertFalse(cm.equals(feet));
+    }
+    
+    //unit conversion
+    
+    @ParameterizedTest
+    @CsvSource({
+    	"1.0, FEET, INCHES, 12.0",
+        "24.0, INCHES, FEET, 2.0",
+        "3.0, YARDS, FEET, 9.0",
+        "1.0, YARDS, INCHES, 36.0",
+        "2.54, CENTIMETERS, INCHES, 1.0",
+        "6.0, FEET, YARDS, 2.0",
+        "5.0, FEET, FEET, 5.0",
+        "0.0, FEET, INCHES, 0.0",
+        "-1.0, FEET, INCHES, -12.0"
+    })
+    void testConversion(double value, Length.LengthUnit source,
+    					Length.LengthUnit target, double expected) {
+    	double result=QuantityMeasurementApp.convert(value, source, target);
+    	System.out.println(result);
+    	assertEquals(expected,result,EPSILON);
+    }
+    
+    @ParameterizedTest
+    @CsvSource({
+    	"5.0, FEET, INCHES",
+        "3.0, YARDS, FEET",
+        "2.54, CENTIMETERS, INCHES"
+    })
+    void testRoundTrip(double value,Length.LengthUnit source, Length.LengthUnit target) {
+    	double converted=QuantityMeasurementApp.convert(value, source, target);
+    	double back=QuantityMeasurementApp.convert(converted, target, source);
+    	assertEquals(value,back,EPSILON);
+    }
+    
+    @Test
+    void testConversion_NaN_throws() {
+    	assertThrows(IllegalArgumentException.class,()-> QuantityMeasurementApp.convert(Double.NaN,
+    											Length.LengthUnit.FEET,Length.LengthUnit.INCHES));
     }
 }

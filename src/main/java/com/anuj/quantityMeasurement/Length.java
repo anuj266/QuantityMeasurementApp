@@ -24,7 +24,8 @@ public class Length {
 	}
 	
 	public Length(double value, LengthUnit unit) {
-		if(value<0) throw new IllegalArgumentException("Length can't be negative");
+		//if(value<0) throw new IllegalArgumentException("Length can't be negative");
+		if(!Double.isFinite(value)) throw new IllegalArgumentException("value should be finite");
 		if(unit==null) throw new IllegalArgumentException("Unit cannot be null");
 		this.value=value;
 		this.unit=unit;
@@ -33,6 +34,7 @@ public class Length {
 	private double convertToBaseUnit() {
 		return value * unit.getConversionFactor(); 
 	}
+	
 	
 	@Override
 	public boolean equals (Object obj) {
@@ -45,6 +47,12 @@ public class Length {
 	@Override
 	public int hashCode() {
 		return Double.hashCode(convertToBaseUnit());
+	}
+	
+	public double convertTo(LengthUnit targetUnit) {
+		if(targetUnit==null) throw new IllegalArgumentException("unit cannot be null");
+		double baseValue=convertToBaseUnit();
+		return baseValue/targetUnit.getConversionFactor();
 	}
 
 }
