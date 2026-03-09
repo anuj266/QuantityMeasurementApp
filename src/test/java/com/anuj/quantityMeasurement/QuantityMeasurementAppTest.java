@@ -186,4 +186,40 @@ class QuantityMeasurementAppTest {
     	assertThrows(IllegalArgumentException.class,()-> QuantityMeasurementApp.convert(Double.NaN,
     											Length.LengthUnit.FEET,Length.LengthUnit.INCHES));
     }
+    
+    // add test 
+    
+    @ParameterizedTest
+    @CsvSource({
+        "1.0, FEET, 2.0, FEET, 3.0",
+        "6.0, INCHES, 6.0, INCHES, 12.0",
+        "1.0, FEET, 12.0, INCHES, 2.0",
+        "12.0, INCHES, 1.0, FEET, 24.0",
+        "1.0, YARDS, 3.0, FEET, 2.0",
+        "2.54, CENTIMETERS, 1.0, INCHES, 5.08",
+        "5.0, FEET, 0.0, INCHES, 5.0",
+        "5.0, FEET, -2.0, FEET, 3.0",
+        "1000000.0, FEET, 1000000.0, FEET, 2000000.0",
+        "0.001, FEET, 0.002, FEET, 0.003"
+    })
+    void testAdd(double v1, Length.LengthUnit u1,
+                 double v2, Length.LengthUnit u2,
+                 double expectedValue) {
+
+        Length l1 = new Length(v1, u1);
+        Length l2 = new Length(v2, u2);
+
+        Length result = l1.add(l2);
+
+        assertEquals(expectedValue, result.getValue(), EPSILON);
+        assertEquals(u1, result.getUnit());
+    }
+    
+    @Test
+    void testAdd_NullLength() {
+        Length l1 = new Length(1.0, Length.LengthUnit.FEET);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> l1.add(null));
+    }
 }

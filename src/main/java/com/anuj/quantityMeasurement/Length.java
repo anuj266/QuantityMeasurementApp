@@ -10,7 +10,7 @@ public class Length {
 		FEET(12.0),
 		INCHES(1.0),
 		YARDS(36),
-		CENTIMETERS(0.393701);
+		CENTIMETERS(1.0/2.54);
 		
 		private final double conversionFactor;
 		
@@ -35,6 +35,14 @@ public class Length {
 		return value * unit.getConversionFactor(); 
 	}
 	
+	public double getValue() {
+		return value;
+	}
+	
+	public LengthUnit getUnit() {
+		return unit;
+	}
+	
 	
 	@Override
 	public boolean equals (Object obj) {
@@ -46,7 +54,12 @@ public class Length {
 	
 	@Override
 	public int hashCode() {
-		return Double.hashCode(convertToBaseUnit());
+		return Long.hashCode(Math.round(convertToBaseUnit() / EPSILON));
+	}
+	
+	@Override
+	public String toString() {
+		return value+" "+unit;
 	}
 	
 	public double convertTo(LengthUnit targetUnit) {
@@ -54,5 +67,10 @@ public class Length {
 		double baseValue=convertToBaseUnit();
 		return baseValue/targetUnit.getConversionFactor();
 	}
-
+	
+	public Length add(Length other) {
+		if(other==null) throw new IllegalArgumentException("Length cant be null");
+		double result=(this.convertToBaseUnit()+other.convertToBaseUnit())/this.unit.getConversionFactor();
+		return new Length(result,this.unit);
+	}
 }
