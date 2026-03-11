@@ -363,7 +363,7 @@ class QuantityMeasurementAppTest {
         Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
         Quantity<LengthUnit> l2 = new Quantity<>(0.0, LengthUnit.FEET);
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ArithmeticException.class,
                 () -> l1.divide(l2));
     }
 }

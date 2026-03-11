@@ -386,7 +386,7 @@ class WeightTest {
         Quantity<WeightUnit> w1 = new Quantity<>(1.0, WeightUnit.KILOGRAM);
         Quantity<WeightUnit> w2 = new Quantity<>(0.0, WeightUnit.KILOGRAM);
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(ArithmeticException.class,
                 () -> w1.divide(w2));
     }
 }
