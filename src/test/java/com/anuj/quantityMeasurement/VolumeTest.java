@@ -248,4 +248,126 @@ class VolumeTest {
 
         assertFalse(volume.equals(weight));
     }
+    
+ // subtract tests
+
+    @ParameterizedTest
+    @CsvSource({
+        "3.0,    LITRE,      1.0,    LITRE,      2.0",
+        "1000.0, MILLILITRE, 500.0,  MILLILITRE, 500.0",
+        "2.0,    LITRE,      1000.0, MILLILITRE, 1.0",
+        "2.0,    GALLON,     1.0,    GALLON,     1.0",
+        "5.0,    LITRE,      0.0,    MILLILITRE, 5.0",
+        "5.0,    LITRE,      -2.0,   LITRE,      7.0",
+        "-1.0,   LITRE,      -3.0,   LITRE,      2.0",
+        "0.003,  LITRE,      0.001,  LITRE,      0.002"
+    })
+    void testSubtract(double v1, VolumeUnit u1,
+                      double v2, VolumeUnit u2,
+                      double expectedValue) {
+        Quantity<VolumeUnit> vol1 = new Quantity<>(v1, u1);
+        Quantity<VolumeUnit> vol2 = new Quantity<>(v2, u2);
+
+        Quantity<VolumeUnit> result = vol1.subtract(vol2);
+
+        assertEquals(expectedValue, result.getValue(), EPSILON);
+        assertEquals(u1, result.getUnit());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // same unit operations
+        "3.0,    LITRE,      1.0,    LITRE,      LITRE,      2.0",
+        "1000.0, MILLILITRE, 500.0,  MILLILITRE, MILLILITRE, 500.0",
+        "2.0,    GALLON,     1.0,    GALLON,     GALLON,     1.0",
+
+        // LITRE - MILLILITRE
+        "2.0, LITRE, 1000.0, MILLILITRE, LITRE,      1.0",
+        "2.0, LITRE, 1000.0, MILLILITRE, MILLILITRE, 1000.0",
+        "2.0, LITRE, 1000.0, MILLILITRE, GALLON,     0.264172",
+
+        // GALLON - LITRE
+        "2.0, GALLON, 3.78541, LITRE, GALLON,     1.0",
+        "2.0, GALLON, 3.78541, LITRE, LITRE,      3.78541",
+        "2.0, GALLON, 3.78541, LITRE, MILLILITRE, 3785.41",
+
+        // zero value
+        "5.0, LITRE, 0.0, MILLILITRE, LITRE, 5.0",
+
+        // negative values
+        "5.0,  LITRE, -2.0, LITRE, LITRE,      7.0",
+        "-1.0, LITRE, -3.0, LITRE, MILLILITRE, 2000.0",
+
+        // large scale
+        "2000.0, LITRE, 500.0, LITRE, MILLILITRE, 1500000.0",
+
+        // small scale
+        "0.003, LITRE, 0.001, LITRE, MILLILITRE, 2.0"
+    })
+    void testTargetSubtract(double v1, VolumeUnit u1,
+                            double v2, VolumeUnit u2,
+                            VolumeUnit target, double expectedValue) {
+        Quantity<VolumeUnit> vol1 = new Quantity<>(v1, u1);
+        Quantity<VolumeUnit> vol2 = new Quantity<>(v2, u2);
+
+        Quantity<VolumeUnit> result = vol1.subtract(vol2, target);
+
+        assertEquals(expectedValue, result.getValue(), EPSILON);
+        assertEquals(target, result.getUnit());
+    }
+
+    @Test
+    void testSubtract_NullVolume() {
+        Quantity<VolumeUnit> v1 = new Quantity<>(1.0, VolumeUnit.LITRE);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> v1.subtract(null));
+    }
+
+    @Test
+    void testTargetSubtract_NullVolume() {
+        Quantity<VolumeUnit> v1 = new Quantity<>(1.0, VolumeUnit.LITRE);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> v1.subtract(null, null));
+    }
+
+    // divide tests
+
+    @ParameterizedTest
+    @CsvSource({
+        "10.0,   LITRE,      2.0,    LITRE,      5.0",
+        "1000.0, MILLILITRE, 500.0,  MILLILITRE, 2.0",
+        "2.0,    LITRE,      1000.0, MILLILITRE, 2.0",
+        "2.0,    GALLON,     1.0,    GALLON,     2.0",
+        "1.0,    LITRE,      1.0,    LITRE,      1.0",
+        "-4.0,   LITRE,      2.0,    LITRE,      -2.0",
+        "-4.0,   LITRE,      -2.0,   LITRE,      2.0",
+        "0.0,    LITRE,      1.0,    LITRE,      0.0"
+    })
+    void testDivide(double v1, VolumeUnit u1,
+                    double v2, VolumeUnit u2,
+                    double expectedResult) {
+        Quantity<VolumeUnit> vol1 = new Quantity<>(v1, u1);
+        Quantity<VolumeUnit> vol2 = new Quantity<>(v2, u2);
+
+        assertEquals(expectedResult, vol1.divide(vol2), EPSILON);
+    }
+
+    @Test
+    void testDivide_NullVolume() {
+        Quantity<VolumeUnit> v1 = new Quantity<>(1.0, VolumeUnit.LITRE);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> v1.divide(null));
+    }
+
+    @Test
+    void testDivide_ZeroDivisor() {
+        Quantity<VolumeUnit> v1 = new Quantity<>(1.0, VolumeUnit.LITRE);
+        Quantity<VolumeUnit> v2 = new Quantity<>(0.0, VolumeUnit.LITRE);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> v1.divide(v2));
+    }
 }

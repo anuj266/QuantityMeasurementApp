@@ -239,4 +239,131 @@ class QuantityMeasurementAppTest {
         assertThrows(IllegalArgumentException.class,
                 () -> l1.add(null, null));
     }
+    
+ // subtract tests
+
+    @ParameterizedTest
+    @CsvSource({
+        "3.0,  FEET,        1.0,  FEET,        2.0",
+        "24.0, INCHES,      12.0, INCHES,      12.0",
+        "2.0,  YARDS,       3.0,  FEET,        1.0",
+        "3.0,  FEET,        12.0, INCHES,      2.0",
+        "5.0,  CENTIMETERS, 2.54, CENTIMETERS, 2.46",
+        "5.0,  FEET,        0.0,  INCHES,      5.0",
+        "5.0,  FEET,        -2.0, FEET,        7.0",
+        "-1.0, FEET,        -3.0, FEET,        2.0",
+        "0.003,FEET,        0.001,FEET,        0.002"
+    })
+    void testSubtract(double v1, LengthUnit u1,
+                      double v2, LengthUnit u2,
+                      double expectedValue) {
+        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
+        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
+
+        Quantity<LengthUnit> result = l1.subtract(l2);
+
+        assertEquals(expectedValue, result.getValue(), EPSILON);
+        assertEquals(u1, result.getUnit());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        // same unit operations
+        "3.0,  FEET,   1.0,  FEET,   FEET,   2.0",
+        "24.0, INCHES, 12.0, INCHES, INCHES, 12.0",
+        "2.0,  YARDS,  1.0,  YARDS,  YARDS,  1.0",
+
+        // FEET - INCHES
+        "2.0, FEET, 12.0, INCHES, FEET,   1.0",
+        "2.0, FEET, 12.0, INCHES, INCHES, 12.0",
+        "2.0, FEET, 12.0, INCHES, YARDS,  0.333333",
+
+        // YARDS - FEET
+        "2.0, YARDS, 3.0, FEET, YARDS,  1.0",
+        "2.0, YARDS, 3.0, FEET, FEET,   3.0",
+        "2.0, YARDS, 3.0, FEET, INCHES, 36.0",
+
+        // CENTIMETERS - INCHES
+        "5.08, CENTIMETERS, 1.0, INCHES, CENTIMETERS, 2.54",
+        "5.08, CENTIMETERS, 1.0, INCHES, INCHES,      1.0",
+
+        // zero value
+        "5.0, FEET, 0.0, INCHES, FEET, 5.0",
+
+        // negative values
+        "5.0,  FEET, -2.0, FEET, INCHES, 84.0",
+        "-1.0, FEET, -3.0, FEET, INCHES, 24.0",
+
+        // large scale
+        "2000.0, FEET, 500.0, FEET, INCHES, 18000.0",
+
+        // small scale
+        "0.003, FEET, 0.001, FEET, INCHES, 0.024"
+    })
+    void testTargetSubtract(double v1, LengthUnit u1,
+                            double v2, LengthUnit u2,
+                            LengthUnit target, double expectedValue) {
+        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
+        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
+
+        Quantity<LengthUnit> result = l1.subtract(l2, target);
+
+        assertEquals(expectedValue, result.getValue(), EPSILON);
+        assertEquals(target, result.getUnit());
+    }
+
+    @Test
+    void testSubtract_NullLength() {
+        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> l1.subtract(null));
+    }
+
+    @Test
+    void testTargetSubtract_NullLength() {
+        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> l1.subtract(null, null));
+    }
+
+    // divide tests
+
+    @ParameterizedTest
+    @CsvSource({
+        "10.0, FEET,        2.0,  FEET,        5.0",
+        "24.0, INCHES,      12.0, INCHES,      2.0",
+        "1.0,  YARDS,       3.0,  FEET,        1.0",
+        "2.0,  FEET,        12.0, INCHES,      2.0",
+        "1.0,  FEET,        1.0,  FEET,        1.0",
+        "-4.0, FEET,        2.0,  FEET,        -2.0",
+        "-4.0, FEET,        -2.0, FEET,        2.0",
+        "0.0,  FEET,        1.0,  FEET,        0.0"
+    })
+    void testDivide(double v1, LengthUnit u1,
+                    double v2, LengthUnit u2,
+                    double expectedResult) {
+        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
+        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
+
+        assertEquals(expectedResult, l1.divide(l2), EPSILON);
+    }
+
+    @Test
+    void testDivide_NullLength() {
+        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> l1.divide(null));
+    }
+
+    @Test
+    void testDivide_ZeroDivisor() {
+        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+        Quantity<LengthUnit> l2 = new Quantity<>(0.0, LengthUnit.FEET);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> l1.divide(l2));
+    }
 }
