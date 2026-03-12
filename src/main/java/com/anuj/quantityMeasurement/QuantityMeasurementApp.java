@@ -71,6 +71,24 @@ public class QuantityMeasurementApp {
 		System.out.println(demonstrateDivision(weightInGrams,weightInKilograms));
 		System.out.println(demonstrateDivision(volumeInML,volumeInL));
 		
+		//temperature 
+		
+		//equality demonstration
+		Quantity<TemperatureUnit> q1= new Quantity<>(0.0, TemperatureUnit.CELSIUS);
+		Quantity<TemperatureUnit> q2= new Quantity<>(32.0, TemperatureUnit.FAHRENHEIT);
+		System.out.println("0 C equals 32 F: "+q1.equals(q2));
+		
+		//conversion demonstration
+		Quantity<TemperatureUnit> celsius= new Quantity<>(100.0, TemperatureUnit.CELSIUS);
+		Quantity<TemperatureUnit> fahrenheit= demonstrateConversion(celsius,TemperatureUnit.FAHRENHEIT);
+		System.out.println("100 C = "+fahrenheit);
+		
+		//unsupported operation demonstration
+		try {
+			demonstrateAddition(celsius,new Quantity<>(50.0, TemperatureUnit.CELSIUS));
+		}catch(UnsupportedOperationException e) {
+			System.out.println(e.getMessage());
+		}
 	}
 
 }

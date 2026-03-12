@@ -47,35 +47,38 @@ public class Quantity<U extends IMeasureable> {
 	}
 	
 	public Quantity<U> add(Quantity<U> other, U targetUnit){
-		validateArithmeticOperands(other,targetUnit);
+		validateArithmeticOperands(other,targetUnit,ArithmeticOperation.ADD);
 		double result=performBaseArithmetic(other,ArithmeticOperation.ADD);
 		return new Quantity<>(targetUnit.convertFromBaseUnit(result),targetUnit);
 	}
 	
 	public Quantity<U> add(Quantity<U> other){
-		validateArithmeticOperands(other,unit);
+		validateArithmeticOperands(other,unit,ArithmeticOperation.ADD);
 		return add(other,unit);
 	}
 	
 	public Quantity<U> subtract(Quantity<U> other, U targetUnit){
-		validateArithmeticOperands(other,targetUnit);
+		validateArithmeticOperands(other,targetUnit,ArithmeticOperation.SUBTRACT);
 		double result=performBaseArithmetic(other,ArithmeticOperation.SUBTRACT);
 		return new Quantity<>(targetUnit.convertFromBaseUnit(result),targetUnit);
 	}
 	
 	public Quantity<U> subtract(Quantity<U> other){
-		validateArithmeticOperands(other,unit);
+		validateArithmeticOperands(other,unit,ArithmeticOperation.SUBTRACT);
 		return subtract(other,unit);
 	}
 	
 	public double divide(Quantity<U> other){
-		validateArithmeticOperands(other,unit);
+		validateArithmeticOperands(other,unit,ArithmeticOperation.DIVIDE);
 		return performBaseArithmetic(other,ArithmeticOperation.DIVIDE);
 	}
 	
-	private void validateArithmeticOperands(Quantity<U> other, U targetUnit) {
+	private void validateArithmeticOperands(Quantity<U> other, U targetUnit, ArithmeticOperation operation) {
 		if(other==null) throw new IllegalArgumentException("Quantity cannot be null");
 		if(targetUnit==null) throw new IllegalArgumentException("Unit cannot be null");
+		if(!unit.supportsArithmetic()) {
+			unit.validateOperationSupport(operation.name());
+		}
 	}
 	
 	private double performBaseArithmetic(Quantity<U> other, ArithmeticOperation operation) {
