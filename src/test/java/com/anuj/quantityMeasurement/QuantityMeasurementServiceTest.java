@@ -1,13 +1,13 @@
 package com.anuj.quantityMeasurement;
 
-import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import com.anuj.quantityMeasurement.dto.QuantityDTO;
 import com.anuj.quantityMeasurement.repository.QuantityMeasurementCacheRepository;
-import com.anuj.quantityMeasurement.service.IQuantityMeasurementService;
-import com.anuj.quantityMeasurement.service.QuantityMeasurementServiceImpl;
+import com.anuj.quantityMeasurement.repository.QuantityMeasurementDatabaseRepository;
+import com.anuj.quantityMeasurement.service.*;
+import com.anuj.quantityMeasurement.util.ApplicationConfig;
+import org.junit.jupiter.api.*;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 class QuantityMeasurementServiceTest {
 
@@ -15,220 +15,116 @@ class QuantityMeasurementServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new QuantityMeasurementServiceImpl(new QuantityMeasurementCacheRepository());
+        // Use DB repository wired to H2 test database
+        ApplicationConfig config = new ApplicationConfig();
+        QuantityMeasurementDatabaseRepository repo = new QuantityMeasurementDatabaseRepository(config);
+        repo.deleteAll();
+        service = new QuantityMeasurementServiceImpl(repo);
     }
 
-    //compare 
-    
-    @Test
-    void testCompare_EqualWeights_ReturnsTrue() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "GRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        assertTrue(service.compare(q1, q2));
-    }
+    //compare
 
-    @Test
-    void testCompare_UnequalWeights_ReturnsFalse() {
-        QuantityDTO q1 = new QuantityDTO(500.0, "GRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        assertFalse(service.compare(q1, q2));
-    }
-
-    @Test
-    void testCompare_EqualVolumes_ReturnsTrue() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "MILLILITRE", "VOLUME");
-        QuantityDTO q2 = new QuantityDTO(1.0, "LITRE", "VOLUME");
-        assertTrue(service.compare(q1, q2));
-    }
-
-    @Test
-    void testCompare_EqualTemperatures_ReturnsTrue() {
-        QuantityDTO q1 = new QuantityDTO(0.0, "CELSIUS", "TEMPERATURE");
-        QuantityDTO q2 = new QuantityDTO(32.0, "FAHRENHEIT", "TEMPERATURE");
-        assertTrue(service.compare(q1, q2));
-    }
-
-    @Test
-    void testCompare_EqualLengths_ReturnsTrue() {
-        QuantityDTO q1 = new QuantityDTO(1.0, "FEET", "LENGTH");
-        QuantityDTO q2 = new QuantityDTO(12.0, "INCHES", "LENGTH");
-        assertTrue(service.compare(q1, q2));
-    }
+    @Test void testCompare_EqualWeights()     { assertTrue(service.compare(dto(1000,"GRAM","WEIGHT"), dto(1,"KILOGRAM","WEIGHT"))); }
+    @Test void testCompare_UnequalWeights()   { assertFalse(service.compare(dto(500,"GRAM","WEIGHT"), dto(1,"KILOGRAM","WEIGHT"))); }
+    @Test void testCompare_EqualVolumes()     { assertTrue(service.compare(dto(1000,"MILLILITRE","VOLUME"), dto(1,"LITRE","VOLUME"))); }
+    @Test void testCompare_EqualTemp()        { assertTrue(service.compare(dto(0,"CELSIUS","TEMPERATURE"), dto(32,"FAHRENHEIT","TEMPERATURE"))); }
+    @Test void testCompare_EqualLengths()     { assertTrue(service.compare(dto(1,"FEET","LENGTH"), dto(12,"INCHES","LENGTH"))); }
 
     //convert
 
     @Test
     void testConvert_GramToKilogram() {
-        QuantityDTO q1     = new QuantityDTO(1000.0, "GRAM", "WEIGHT");
-        QuantityDTO target = new QuantityDTO(0, "KILOGRAM", "WEIGHT");
-        QuantityDTO result = service.convert(q1, target);
-        assertEquals(1.0, result.getValue(), 1e-6);
-        assertEquals("KILOGRAM", result.getUnit());
-        assertEquals("WEIGHT", result.getType());
-    }
-
-    @Test
-    void testConvert_MillilitreToLitre() {
-        QuantityDTO q1     = new QuantityDTO(1000.0, "MILLILITRE", "VOLUME");
-        QuantityDTO target = new QuantityDTO(0, "LITRE", "VOLUME");
-        QuantityDTO result = service.convert(q1, target);
-        assertEquals(1.0, result.getValue(), 1e-6);
-        assertEquals("LITRE", result.getUnit());
+        QuantityDTO r = service.convert(dto(1000,"GRAM","WEIGHT"), dto(0,"KILOGRAM","WEIGHT"));
+        assertEquals(1.0,  r.getValue(), 1e-6);
+        assertEquals("KILOGRAM", r.getUnit());
+        assertEquals("WEIGHT",   r.getType());
     }
 
     @Test
     void testConvert_CelsiusToFahrenheit() {
-        QuantityDTO q1     = new QuantityDTO(100.0, "CELSIUS", "TEMPERATURE");
-        QuantityDTO target = new QuantityDTO(0, "FAHRENHEIT", "TEMPERATURE");
-        QuantityDTO result = service.convert(q1, target);
-        assertEquals(212.0, result.getValue(), 1e-4);
-        assertEquals("FAHRENHEIT", result.getUnit());
+        QuantityDTO r = service.convert(dto(100,"CELSIUS","TEMPERATURE"), dto(0,"FAHRENHEIT","TEMPERATURE"));
+        assertEquals(212.0, r.getValue(), 1e-4);
     }
 
     @Test
     void testConvert_FeetToInches() {
-        QuantityDTO q1     = new QuantityDTO(1.0, "FEET", "LENGTH");
-        QuantityDTO target = new QuantityDTO(0, "INCHES", "LENGTH");
-        QuantityDTO result = service.convert(q1, target);
-        assertEquals(12.0, result.getValue(), 1e-6);
-        assertEquals("INCHES", result.getUnit());
+        QuantityDTO r = service.convert(dto(1,"FEET","LENGTH"), dto(0,"INCHES","LENGTH"));
+        assertEquals(12.0, r.getValue(), 1e-6);
     }
 
-    // add
+    //add
 
     @Test
-    void testAdd_Weights_ResultInFirstUnit() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "GRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        QuantityDTO result = service.add(q1, q2);
-        assertEquals(2000.0, result.getValue(), 1e-4);
-        assertEquals("GRAM", result.getUnit());
-        assertEquals("WEIGHT", result.getType());
+    void testAdd_Weights() {
+        QuantityDTO r = service.add(dto(1000,"GRAM","WEIGHT"), dto(1,"KILOGRAM","WEIGHT"));
+        assertEquals(2000.0, r.getValue(), 1e-4);
+        assertEquals("GRAM", r.getUnit());
     }
 
     @Test
-    void testAdd_Volumes_ResultInFirstUnit() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "MILLILITRE", "VOLUME");
-        QuantityDTO q2 = new QuantityDTO(1.0, "LITRE", "VOLUME");
-        QuantityDTO result = service.add(q1, q2);
-        assertEquals(2000.0, result.getValue(), 1e-4);
-        assertEquals("MILLILITRE", result.getUnit());
+    void testAdd_Volumes() {
+        QuantityDTO r = service.add(dto(1000,"MILLILITRE","VOLUME"), dto(1,"LITRE","VOLUME"));
+        assertEquals(2000.0, r.getValue(), 1e-4);
     }
 
     @Test
-    void testAdd_Lengths_ResultInFirstUnit() {
-        QuantityDTO q1 = new QuantityDTO(1.0, "FEET", "LENGTH");
-        QuantityDTO q2 = new QuantityDTO(12.0, "INCHES", "LENGTH");
-        QuantityDTO result = service.add(q1, q2);
-        assertEquals(2.0, result.getValue(), 1e-6);
-        assertEquals("FEET", result.getUnit());
-    }
-
-    @Test
-    void testAdd_Temperature_ThrowsUnsupportedOperation() {
-        QuantityDTO q1 = new QuantityDTO(100.0, "CELSIUS", "TEMPERATURE");
-        QuantityDTO q2 = new QuantityDTO(50.0, "CELSIUS", "TEMPERATURE");
-        assertThrows(UnsupportedOperationException.class, () -> service.add(q1, q2));
+    void testAdd_Temperature_Throws() {
+        assertThrows(UnsupportedOperationException.class,
+            () -> service.add(dto(100,"CELSIUS","TEMPERATURE"), dto(50,"CELSIUS","TEMPERATURE")));
     }
 
     //subtract
-    
+
     @Test
-    void testSubtract_Weights_ResultInFirstUnit() {
-        QuantityDTO q1 = new QuantityDTO(2000.0, "GRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        QuantityDTO result = service.subtract(q1, q2);
-        assertEquals(1000.0, result.getValue(), 1e-4);
-        assertEquals("GRAM", result.getUnit());
-        assertEquals("WEIGHT", result.getType());
+    void testSubtract_Weights() {
+        QuantityDTO r = service.subtract(dto(2000,"GRAM","WEIGHT"), dto(1,"KILOGRAM","WEIGHT"));
+        assertEquals(1000.0, r.getValue(), 1e-4);
+        assertEquals("GRAM", r.getUnit());
     }
 
     @Test
-    void testSubtract_Volumes_ResultInFirstUnit() {
-        QuantityDTO q1 = new QuantityDTO(2000.0, "MILLILITRE", "VOLUME");
-        QuantityDTO q2 = new QuantityDTO(1.0, "LITRE", "VOLUME");
-        QuantityDTO result = service.subtract(q1, q2);
-        assertEquals(1000.0, result.getValue(), 1e-4);
-        assertEquals("MILLILITRE", result.getUnit());
-    }
-
-    @Test
-    void testSubtract_Lengths_ResultInFirstUnit() {
-        QuantityDTO q1 = new QuantityDTO(2.0, "FEET", "LENGTH");
-        QuantityDTO q2 = new QuantityDTO(12.0, "INCHES", "LENGTH");
-        QuantityDTO result = service.subtract(q1, q2);
-        assertEquals(1.0, result.getValue(), 1e-6);
-        assertEquals("FEET", result.getUnit());
-    }
-
-    @Test
-    void testSubtract_Temperature_ThrowsUnsupportedOperation() {
-        QuantityDTO q1 = new QuantityDTO(100.0, "CELSIUS", "TEMPERATURE");
-        QuantityDTO q2 = new QuantityDTO(50.0, "CELSIUS", "TEMPERATURE");
-        assertThrows(UnsupportedOperationException.class, () -> service.subtract(q1, q2));
+    void testSubtract_Temperature_Throws() {
+        assertThrows(UnsupportedOperationException.class,
+            () -> service.subtract(dto(100,"CELSIUS","TEMPERATURE"), dto(50,"CELSIUS","TEMPERATURE")));
     }
 
     //divide
 
-    @Test
-    void testDivide_Weights() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "GRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        assertEquals(1.0, service.divide(q1, q2), 1e-6);
+    @Test void testDivide_Weights()  { assertEquals(1.0, service.divide(dto(1000,"GRAM","WEIGHT"),      dto(1,"KILOGRAM","WEIGHT")), 1e-6); }
+    @Test void testDivide_Volumes()  { assertEquals(1.0, service.divide(dto(1000,"MILLILITRE","VOLUME"), dto(1,"LITRE","VOLUME")),    1e-6); }
+    @Test void testDivide_ZeroDivisor() {
+        assertThrows(ArithmeticException.class,
+            () -> service.divide(dto(1000,"GRAM","WEIGHT"), dto(0,"GRAM","WEIGHT")));
     }
 
-    @Test
-    void testDivide_Volumes() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "MILLILITRE", "VOLUME");
-        QuantityDTO q2 = new QuantityDTO(1.0, "LITRE", "VOLUME");
-        assertEquals(1.0, service.divide(q1, q2), 1e-6);
-    }
+    //persistence
 
     @Test
-    void testDivide_Lengths() {
-        QuantityDTO q1 = new QuantityDTO(2.0, "FEET", "LENGTH");
-        QuantityDTO q2 = new QuantityDTO(12.0, "INCHES", "LENGTH");
-        assertEquals(2.0, service.divide(q1, q2), 1e-6);
+    void testAdd_PersistsToRepository() {
+        ApplicationConfig config = new ApplicationConfig();
+        QuantityMeasurementDatabaseRepository repo = new QuantityMeasurementDatabaseRepository(config);
+        repo.deleteAll();
+        IQuantityMeasurementService svc = new QuantityMeasurementServiceImpl(repo);
+        svc.add(dto(1000,"GRAM","WEIGHT"), dto(1,"KILOGRAM","WEIGHT"));
+        assertEquals(1, repo.getTotalCount());
+        repo.releaseResources();
     }
+
+    //invalid input
+
+    @Test void testUnknownType_Throws()  { assertThrows(IllegalArgumentException.class, () -> service.compare(dto(1,"GRAM","INVALID"), dto(1,"GRAM","INVALID"))); }
+    @Test void testUnknownUnit_Throws()  { assertThrows(IllegalArgumentException.class, () -> service.compare(dto(1,"BAD_UNIT","WEIGHT"), dto(1,"GRAM","WEIGHT"))); }
+
+    //service with cache repository
 
     @Test
-    void testDivide_ZeroDivisor_ThrowsArithmeticException() {
-        QuantityDTO q1 = new QuantityDTO(1000.0, "GRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(0.0, "GRAM", "WEIGHT");
-        assertThrows(ArithmeticException.class, () -> service.divide(q1, q2));
+    void testServiceWithCacheRepository() {
+        QuantityMeasurementCacheRepository cache = new QuantityMeasurementCacheRepository();
+        IQuantityMeasurementService cacheSvc = new QuantityMeasurementServiceImpl(cache);
+        cacheSvc.add(dto(1000,"GRAM","WEIGHT"), dto(1,"KILOGRAM","WEIGHT"));
+        assertEquals(1, cache.getTotalCount());
     }
 
-    //invalid output
-
-    @Test
-    void testUnknownType_ThrowsIllegalArgumentException() {
-        QuantityDTO q1 = new QuantityDTO(1.0, "GRAM", "INVALID_TYPE");
-        QuantityDTO q2 = new QuantityDTO(1.0, "GRAM", "INVALID_TYPE");
-        assertThrows(IllegalArgumentException.class, () -> service.compare(q1, q2));
-    }
-
-    @Test
-    void testUnknownUnit_ThrowsIllegalArgumentException() {
-        QuantityDTO q1 = new QuantityDTO(1.0, "UNKNOWN_UNIT", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "GRAM", "WEIGHT");
-        assertThrows(IllegalArgumentException.class, () -> service.compare(q1, q2));
-    }
-
-    //result dto fields
-
-    @Test
-    void testAdd_ResultDTO_HasCorrectType() {
-        QuantityDTO q1 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        QuantityDTO q2 = new QuantityDTO(1.0, "KILOGRAM", "WEIGHT");
-        QuantityDTO result = service.add(q1, q2);
-        assertEquals("WEIGHT", result.getType());
-    }
-
-    @Test
-    void testConvert_ResultDTO_HasCorrectType() {
-        QuantityDTO q1     = new QuantityDTO(1000.0, "GRAM", "WEIGHT");
-        QuantityDTO target = new QuantityDTO(0, "KILOGRAM", "WEIGHT");
-        QuantityDTO result = service.convert(q1, target);
-        assertEquals("WEIGHT", result.getType());
-    }
+    // helper
+    private QuantityDTO dto(double v, String u, String t) { return new QuantityDTO(v, u, t); }
 }

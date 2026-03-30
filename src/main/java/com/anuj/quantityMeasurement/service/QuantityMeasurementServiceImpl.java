@@ -1,18 +1,23 @@
 package com.anuj.quantityMeasurement.service;
 
-import com.anuj.quantityMeasurement.domain.*;
 import com.anuj.quantityMeasurement.dto.QuantityDTO;
 import com.anuj.quantityMeasurement.entity.QuantityMeasurementEntity;
 import com.anuj.quantityMeasurement.model.QuantityModel;
 import com.anuj.quantityMeasurement.repository.IQuantityMeasurementRepository;
-
+import com.anuj.quantityMeasurement.domain.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QuantityMeasurementServiceImpl implements IQuantityMeasurementService {
 
-    private IQuantityMeasurementRepository repository;
+    private static final Logger logger = LoggerFactory.getLogger(QuantityMeasurementServiceImpl.class);
+
+    private final IQuantityMeasurementRepository repository;
 
     public QuantityMeasurementServiceImpl(IQuantityMeasurementRepository repository) {
         this.repository = repository;
+        logger.info("QuantityMeasurementServiceImpl initialized with {}",
+            repository.getClass().getSimpleName());
     }
 
     @SuppressWarnings("unchecked")
@@ -36,7 +41,9 @@ public class QuantityMeasurementServiceImpl implements IQuantityMeasurementServi
         QuantityModel op1 = new QuantityModel(q1dto.getValue(), q1dto.getUnit());
         QuantityModel op2 = new QuantityModel(q2dto.getValue(), q2dto.getUnit());
         QuantityModel res = new QuantityModel(result.getValue(), result.getUnit().toString());
-        repository.save(new QuantityMeasurementEntity(op1, op2, operation, res));
+        repository.save(new QuantityMeasurementEntity(op1, op2, operation, res, q1dto.getType()));
+        logger.info("Operation '{}' saved: {} {} → {} {}",
+            operation, q1dto.getValue(), q1dto.getUnit(), result.getValue(), result.getUnit());
         return new QuantityDTO(result.getValue(), result.getUnit().toString(), q1dto.getType());
     }
 
@@ -56,15 +63,18 @@ public class QuantityMeasurementServiceImpl implements IQuantityMeasurementServi
 
     @Override
     public QuantityDTO convert(QuantityDTO q1dto, QuantityDTO q2dto) {
-        Quantity<IMeasurable> q1 = toQuantity(q1dto);
-        IMeasurable targetUnit   = resolveUnit(q2dto.getType(), q2dto.getUnit());
-        double converted         = q1.convertTo(targetUnit);
+        Quantity<IMeasurable> q1         = toQuantity(q1dto);
+        IMeasurable           targetUnit = resolveUnit(q2dto.getType(), q2dto.getUnit());
+        double                converted  = q1.convertTo(targetUnit);
         return saveAndReturn(q1dto, q2dto, "CONVERT", new Quantity<>(converted, targetUnit));
     }
 
     @Override
     public boolean compare(QuantityDTO q1dto, QuantityDTO q2dto) {
-        return this.<IMeasurable>toQuantity(q1dto).equals(toQuantity(q2dto));
+        boolean result = this.<IMeasurable>toQuantity(q1dto).equals(toQuantity(q2dto));
+        logger.info("Compare {} {} vs {} {}: {}",
+            q1dto.getValue(), q1dto.getUnit(), q2dto.getValue(), q2dto.getUnit(), result);
+        return result;
     }
 
     @Override
@@ -73,4 +83,4 @@ public class QuantityMeasurementServiceImpl implements IQuantityMeasurementServi
         Quantity<IMeasurable> q2 = toQuantity(q2dto);
         return q1.divide(q2);
     }
-}
+}
