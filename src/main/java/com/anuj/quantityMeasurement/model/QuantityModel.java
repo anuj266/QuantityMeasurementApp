@@ -1,36 +1,15 @@
 package com.anuj.quantityMeasurement.model;
 
-import com.anuj.quantityMeasurement.IMeasurable;
-
-public class QuantityModel<U extends IMeasurable> {
-
-    private final double value;
-    private final U unit;
-
-    public QuantityModel(double value, U unit) {
-        if (!Double.isFinite(value)) {
-            throw new IllegalArgumentException("Value must be finite");
-        }
-        if (unit == null) {
-            throw new IllegalArgumentException("Unit cannot be null");
-        }
-        this.value = value;
-        this.unit = unit;
-    }
-
-    public double getValue() {
-        return value;
-    }
-
-    public U getUnit() {
-        return unit;
-    }
-
-    @Override
-    public String toString() {
-        return "QuantityModel{" +
-                "value=" + value +
-                ", unit=" + unit +
-                '}';
-    }
+public class QuantityModel {
+	
+	private double value;
+	private String unit;
+	
+	public QuantityModel(double value, String unit) {
+		this.value=value;
+		this.unit=unit;
+	}
+	
+	public double getValue() { return value; }
+	public String getUnit() { return unit; }
 }

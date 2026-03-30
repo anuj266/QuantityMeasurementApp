@@ -1,37 +1,39 @@
 package com.anuj.quantityMeasurement.Controller;
 
 import com.anuj.quantityMeasurement.dto.QuantityDTO;
+import com.anuj.quantityMeasurement.repository.QuantityMeasurementCacheRepository;
 import com.anuj.quantityMeasurement.service.IQuantityMeasurementService;
+import com.anuj.quantityMeasurement.service.QuantityMeasurementServiceImpl;
 
 public class QuantityMeasurementController {
 
     private final IQuantityMeasurementService service;
 
+    public QuantityMeasurementController() {
+        this.service = new QuantityMeasurementServiceImpl(new QuantityMeasurementCacheRepository());
+    }
+
     public QuantityMeasurementController(IQuantityMeasurementService service) {
-        if (service == null) {
-            throw new IllegalArgumentException("Service cannot be null");
-        }
         this.service = service;
     }
 
-    public boolean performComparison(QuantityDTO first, QuantityDTO second) {
-        return service.compare(first, second);
+    public QuantityDTO add(QuantityDTO q1, QuantityDTO q2) {
+        return service.add(q1, q2);
     }
 
-    public QuantityDTO performConversion(QuantityDTO source, QuantityDTO.IMeasurableUnit targetUnit) {
-        return service.convert(source, targetUnit);
+    public QuantityDTO subtract(QuantityDTO q1, QuantityDTO q2) {
+        return service.subtract(q1, q2);
     }
 
-    public QuantityDTO performAddition(QuantityDTO first, QuantityDTO second, QuantityDTO.IMeasurableUnit targetUnit) {
-        return service.add(first, second);
+    public QuantityDTO convert(QuantityDTO q1, QuantityDTO q2) {
+        return service.convert(q1, q2);
     }
 
-    public QuantityDTO performSubtraction(QuantityDTO first, QuantityDTO second,
-                                          QuantityDTO.IMeasurableUnit targetUnit) {
-        return service.subtract(first, second);
+    public boolean compare(QuantityDTO q1, QuantityDTO q2) {
+        return service.compare(q1, q2);
     }
 
-    public double performDivision(QuantityDTO first, QuantityDTO second) {
-        return service.divide(first, second);
+    public double divide(QuantityDTO q1, QuantityDTO q2) {
+        return service.divide(q1, q2);
     }
 }
