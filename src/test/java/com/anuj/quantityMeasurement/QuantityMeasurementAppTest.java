@@ -1,372 +1,283 @@
 package com.anuj.quantityMeasurement;
 
-import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
-
-import com.anuj.quantityMeasurement.domain.LengthUnit;
-import com.anuj.quantityMeasurement.domain.Quantity;
-
+import com.anuj.quantityMeasurement.model.QuantityDTO;
+import com.anuj.quantityMeasurement.model.QuantityInputDTO;
+import com.anuj.quantityMeasurement.model.QuantityMeasurementDTO;
+import com.anuj.quantityMeasurement.repository.QuantityMeasurementRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.*;
 
-class QuantityMeasurementAppTest {
+import static org.junit.jupiter.api.Assertions.*;
 
-    private static final double EPSILON = 1e-6;
 
-    // length equality tests
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class QuantityMeasurementApplicationTests {
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testEquality_SameValue_ForAllUnits(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(10.0, unit);
-        Quantity<LengthUnit> l2 = new Quantity<>(10.0, unit);
+    @LocalServerPort
+    private int port;
 
-        assertTrue(l1.equals(l2));
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Autowired
+    private QuantityMeasurementRepository repository;
+
+    private String base;
+
+    @BeforeEach
+    void setUp() {
+        base = "http://localhost:" + port + "/api/v1/quantities";
+        repository.deleteAll();  // clean DB before each test
     }
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testEquality_DifferentValue_ForAllUnits(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(10.0, unit);
-        Quantity<LengthUnit> l2 = new Quantity<>(20.0, unit);
-
-        assertFalse(l1.equals(l2));
-    }
-
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_NullComparison(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(68.0, unit);
-
-        assertFalse(l1.equals(null));
-    }
-
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_NonNumericInput(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(68.0, unit);
-
-        assertFalse(l1.equals("68"));
-    }
-
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_SameReference(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(68.0, unit);
-
-        assertTrue(l1.equals(l1));
-    }
-
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_Consistent(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, unit);
-        Quantity<LengthUnit> l2 = new Quantity<>(1.0, unit);
-
-        assertTrue(l1.equals(l2));
-        assertTrue(l1.equals(l2));
-        assertTrue(l1.equals(l2));
-    }
-
-    // cross unit test
-
-    @ParameterizedTest
-    @CsvSource({
-        "1.0,   FEET,        12.0,    INCHES",
-        "1.0,   YARDS,       36.0,    INCHES",
-        "100.0, CENTIMETERS, 39.370078, INCHES",
-        "3.0,   FEET,        1.0,     YARDS",
-        "30.48, CENTIMETERS, 1.0,     FEET"
-    })
-    void testCrossUnitEquality_SameLength(double v1, LengthUnit u1,
-                                          double v2, LengthUnit u2) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        assertTrue(l1.equals(l2));
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "2.0,    FEET,        12.0,    INCHES",
-        "2.0,    YARDS,       36.0,    INCHES",
-        "1000.0, CENTIMETERS, 39.3701, INCHES",
-        "3.0,    FEET,        3.0,     YARDS",
-        "30.48,  CENTIMETERS, 2.0,     FEET"
-    })
-    void testCrossUnitEquality_DifferentLength(double v1, LengthUnit u1,
-                                               double v2, LengthUnit u2) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        assertFalse(l1.equals(l2));
-    }
-
-    // unit conversion
-
-    @ParameterizedTest
-    @CsvSource({
-        "1.0,  FEET,        INCHES,      12.0",
-        "24.0, INCHES,      FEET,        2.0",
-        "3.0,  YARDS,       FEET,        9.0",
-        "1.0,  YARDS,       INCHES,      36.0",
-        "2.54, CENTIMETERS, INCHES,      1.0",
-        "6.0,  FEET,        YARDS,       2.0",
-        "5.0,  FEET,        FEET,        5.0",
-        "0.0,  FEET,        INCHES,      0.0",
-        "-1.0, FEET,        INCHES,      -12.0"
-    })
-    void testConversion(double value, LengthUnit source,
-                        LengthUnit target, double expected) {
-        Quantity<LengthUnit> l = new Quantity<>(value, source);
-        assertEquals(expected, l.convertTo(target), EPSILON);
-    }
-
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testRoundTrip_AllUnitsToMetreAndBack(LengthUnit unit) {
-        double original  = 1.0;
-        double converted = new Quantity<>(original, unit).convertTo(LengthUnit.CENTIMETERS);
-        double back      = new Quantity<>(converted, LengthUnit.CENTIMETERS).convertTo(unit);
-        assertEquals(original, back, EPSILON);
+    // Helper
+    private QuantityInputDTO input(double v1, String u1, String t1,
+                                   double v2, String u2, String t2) {
+        return new QuantityInputDTO(
+            new QuantityDTO(v1, u1, t1),
+            new QuantityDTO(v2, u2, t2));
     }
 
     @Test
-    void testConversion_NaN_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new Quantity<>(Double.NaN, LengthUnit.FEET));
+    void contextLoads() {}
+
+    @Test
+    void testCompare_EqualLengths_ReturnsTrue() {
+       
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/compare",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals("true", r.getBody().getResultString());
+        assertFalse(r.getBody().isError());
     }
 
     @Test
-    void testConversion_Infinite_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new Quantity<>(Double.POSITIVE_INFINITY, LengthUnit.FEET));
+    void testCompare_UnequalLengths_ReturnsFalse() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/compare",
+            input(2.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals("false", r.getBody().getResultString());
     }
 
     @Test
-    void testConversion_NullUnit_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new Quantity<>(1.0, null));
+    void testCompare_Temperature_0C_Equals_32F() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/compare",
+            input(0.0, "CELSIUS", "TemperatureUnit", 32.0, "FAHRENHEIT", "TemperatureUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals("true", r.getBody().getResultString());
     }
 
-    // add test
+    //convert
 
-    @ParameterizedTest
-    @CsvSource({
-        "1.0,       FEET,        2.0,  FEET,        3.0",
-        "6.0,       INCHES,      6.0,  INCHES,      12.0",
-        "1.0,       FEET,        12.0, INCHES,      2.0",
-        "12.0,      INCHES,      1.0,  FEET,        24.0",
-        "1.0,       YARDS,       3.0,  FEET,        2.0",
-        "2.54,      CENTIMETERS, 1.0,  INCHES,      5.08",
-        "5.0,       FEET,        0.0,  INCHES,      5.0",
-        "5.0,       FEET,        -2.0, FEET,        3.0",
-        "1000000.0, FEET,        1000000.0, FEET,   2000000.0",
-        "0.001,     FEET,        0.002, FEET,       0.003"
-    })
-    void testAdd(double v1, LengthUnit u1,
-                 double v2, LengthUnit u2,
-                 double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
+    @Test
+    void testConvert_FeetToInches_Returns12() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/convert",
+            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
 
-        Quantity<LengthUnit> result = l1.add(l2);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(u1, result.getUnit());
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        // same unit operations
-        "1.0,  FEET,        1.0,  FEET,        FEET,        2.0",
-        "12.0, INCHES,      12.0, INCHES,      INCHES,      24.0",
-        "1.0,  YARDS,       1.0,  YARDS,       YARDS,       2.0",
-        "2.54, CENTIMETERS, 2.54, CENTIMETERS, CENTIMETERS, 5.08",
-
-        // FEET + INCHES
-        "1.0, FEET, 12.0, INCHES, FEET,   2.0",
-        "1.0, FEET, 12.0, INCHES, INCHES, 24.0",
-        "1.0, FEET, 12.0, INCHES, YARDS,  0.666667",
-
-        // YARDS + FEET
-        "1.0, YARDS, 3.0, FEET, YARDS,  2.0",
-        "1.0, YARDS, 3.0, FEET, FEET,   6.0",
-        "1.0, YARDS, 3.0, FEET, INCHES, 72.0",
-
-        // INCHES + YARDS
-        "36.0, INCHES, 1.0, YARDS, FEET,  6.0",
-        "36.0, INCHES, 1.0, YARDS, YARDS, 2.0",
-
-        // CENTIMETERS + INCHES
-        "2.54, CENTIMETERS, 1.0, INCHES, CENTIMETERS, 5.08",
-        "2.54, CENTIMETERS, 1.0, INCHES, INCHES,      2.0",
-
-        // zero value
-        "5.0, FEET, 0.0, INCHES, YARDS, 1.666667",
-
-        // negative values
-        "5.0, FEET, -2.0, FEET, INCHES, 36.0",
-
-        // large scale
-        "1000.0, FEET, 500.0, FEET, INCHES, 18000.0",
-
-        // small scale
-        "12.0, INCHES, 12.0, INCHES, YARDS, 0.666667"
-    })
-    void testTargetAdd(double v1, LengthUnit u1,
-                       double v2, LengthUnit u2,
-                       LengthUnit target, double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.add(l2, target);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(target, result.getUnit());
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(12.0, r.getBody().getResultValue(), 1e-6);
     }
 
     @Test
-    void testAdd_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testConvert_GramToKilogram() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/convert",
+            input(1000.0, "GRAM", "WeightUnit", 0.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.add(null));
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
     }
 
     @Test
-    void testTargetAdd_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testConvert_CelsiusToFahrenheit_100C_Is_212F() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/convert",
+            input(100.0, "CELSIUS", "TemperatureUnit", 0.0, "FAHRENHEIT", "TemperatureUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.add(null, null));
-    }
-    
- // subtract tests
-
-    @ParameterizedTest
-    @CsvSource({
-        "3.0,  FEET,        1.0,  FEET,        2.0",
-        "24.0, INCHES,      12.0, INCHES,      12.0",
-        "2.0,  YARDS,       3.0,  FEET,        1.0",
-        "3.0,  FEET,        12.0, INCHES,      2.0",
-        "5.0,  CENTIMETERS, 2.54, CENTIMETERS, 2.46",
-        "5.0,  FEET,        0.0,  INCHES,      5.0",
-        "5.0,  FEET,        -2.0, FEET,        7.0",
-        "-1.0, FEET,        -3.0, FEET,        2.0",
-        "0.003,FEET,        0.001,FEET,        0.002"
-    })
-    void testSubtract(double v1, LengthUnit u1,
-                      double v2, LengthUnit u2,
-                      double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.subtract(l2);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(u1, result.getUnit());
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(212.0, r.getBody().getResultValue(), 1e-4);
     }
 
-    @ParameterizedTest
-    @CsvSource({
-        // same unit operations
-        "3.0,  FEET,   1.0,  FEET,   FEET,   2.0",
-        "24.0, INCHES, 12.0, INCHES, INCHES, 12.0",
-        "2.0,  YARDS,  1.0,  YARDS,  YARDS,  1.0",
+    //add
 
-        // FEET - INCHES
-        "2.0, FEET, 12.0, INCHES, FEET,   1.0",
-        "2.0, FEET, 12.0, INCHES, INCHES, 12.0",
-        "2.0, FEET, 12.0, INCHES, YARDS,  0.333333",
+    @Test
+    void testAdd_LengthUnits_Returns2Feet() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/add",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
 
-        // YARDS - FEET
-        "2.0, YARDS, 3.0, FEET, YARDS,  1.0",
-        "2.0, YARDS, 3.0, FEET, FEET,   3.0",
-        "2.0, YARDS, 3.0, FEET, INCHES, 36.0",
-
-        // CENTIMETERS - INCHES
-        "5.08, CENTIMETERS, 1.0, INCHES, CENTIMETERS, 2.54",
-        "5.08, CENTIMETERS, 1.0, INCHES, INCHES,      1.0",
-
-        // zero value
-        "5.0, FEET, 0.0, INCHES, FEET, 5.0",
-
-        // negative values
-        "5.0,  FEET, -2.0, FEET, INCHES, 84.0",
-        "-1.0, FEET, -3.0, FEET, INCHES, 24.0",
-
-        // large scale
-        "2000.0, FEET, 500.0, FEET, INCHES, 18000.0",
-
-        // small scale
-        "0.003, FEET, 0.001, FEET, INCHES, 0.024"
-    })
-    void testTargetSubtract(double v1, LengthUnit u1,
-                            double v2, LengthUnit u2,
-                            LengthUnit target, double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.subtract(l2, target);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(target, result.getUnit());
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(2.0,    r.getBody().getResultValue(), 1e-6);
+        assertEquals("FEET", r.getBody().getResultUnit());
     }
 
     @Test
-    void testSubtract_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testAdd_WeightUnits() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/add",
+            input(1000.0, "GRAM", "WeightUnit", 1.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.subtract(null));
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(2000.0, r.getBody().getResultValue(), 1e-4);
+        assertEquals("GRAM", r.getBody().getResultUnit());
     }
 
     @Test
-    void testTargetSubtract_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testAdd_TemperatureUnits_Returns400_Unsupported() {
+        
+        ResponseEntity<String> r = restTemplate.postForEntity(
+            base + "/add",
+            input(100.0, "CELSIUS", "TemperatureUnit", 50.0, "CELSIUS", "TemperatureUnit"),
+            String.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.subtract(null, null));
-    }
-
-    // divide tests
-
-    @ParameterizedTest
-    @CsvSource({
-        "10.0, FEET,        2.0,  FEET,        5.0",
-        "24.0, INCHES,      12.0, INCHES,      2.0",
-        "1.0,  YARDS,       3.0,  FEET,        1.0",
-        "2.0,  FEET,        12.0, INCHES,      2.0",
-        "1.0,  FEET,        1.0,  FEET,        1.0",
-        "-4.0, FEET,        2.0,  FEET,        -2.0",
-        "-4.0, FEET,        -2.0, FEET,        2.0",
-        "0.0,  FEET,        1.0,  FEET,        0.0"
-    })
-    void testDivide(double v1, LengthUnit u1,
-                    double v2, LengthUnit u2,
-                    double expectedResult) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        assertEquals(expectedResult, l1.divide(l2), EPSILON);
+        assertEquals(HttpStatus.BAD_REQUEST, r.getStatusCode());
     }
 
     @Test
-    void testDivide_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testAdd_IncompatibleTypes_Returns400() {
+        ResponseEntity<String> r = restTemplate.postForEntity(
+            base + "/add",
+            input(1.0, "FEET", "LengthUnit", 1.0, "KILOGRAM", "WeightUnit"),
+            String.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.divide(null));
+        assertEquals(HttpStatus.BAD_REQUEST, r.getStatusCode());
+        assertTrue(r.getBody().contains("Cannot perform arithmetic"));
+    }
+
+    //subtract
+
+    @Test
+    void testSubtract_LengthUnits() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/subtract",
+            input(2.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
+    }
+
+    //divide
+
+    @Test
+    void testDivide_WeightUnits() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/divide",
+            input(1000.0, "GRAM", "WeightUnit", 1.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
     }
 
     @Test
-    void testDivide_ZeroDivisor() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
-        Quantity<LengthUnit> l2 = new Quantity<>(0.0, LengthUnit.FEET);
+    void testDivide_ByZero_Returns500() {
+        ResponseEntity<String> r = restTemplate.postForEntity(
+            base + "/divide",
+            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"),
+            String.class);
 
-        assertThrows(ArithmeticException.class,
-                () -> l1.divide(l2));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, r.getStatusCode());
+        assertTrue(r.getBody().contains("Divide by zero"));
+    }
+
+    //history and count
+
+    @Test
+    void testGetHistoryByOperation_AfterAdd_Returns1Record() {
+        restTemplate.postForEntity(base + "/add",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        ResponseEntity<QuantityMeasurementDTO[]> r = restTemplate.getForEntity(
+            base + "/history/operation/add", QuantityMeasurementDTO[].class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(1, r.getBody().length);
+        assertEquals("add", r.getBody()[0].getOperation());
+    }
+
+    @Test
+    void testGetHistoryByType_AfterTwoLengthOps_Returns2Records() {
+        restTemplate.postForEntity(base + "/add",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+        restTemplate.postForEntity(base + "/compare",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        ResponseEntity<QuantityMeasurementDTO[]> r = restTemplate.getForEntity(
+            base + "/history/type/LengthUnit", QuantityMeasurementDTO[].class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(2, r.getBody().length);
+    }
+
+    @Test
+    void testGetCount_AfterTwoCompares_Returns2() {
+        restTemplate.postForEntity(base + "/compare",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+        restTemplate.postForEntity(base + "/compare",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        ResponseEntity<Long> r = restTemplate.getForEntity(
+            base + "/count/compare", Long.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(2L, r.getBody());
+    }
+
+    @Test
+    void testGetErrorHistory_AfterFailedAdd_Returns1ErrorRecord() {
+        // Trigger an error by adding incompatible types
+        restTemplate.postForEntity(base + "/add",
+            input(1.0, "FEET", "LengthUnit", 1.0, "KILOGRAM", "WeightUnit"),
+            String.class);
+
+        ResponseEntity<QuantityMeasurementDTO[]> r = restTemplate.getForEntity(
+            base + "/history/errored", QuantityMeasurementDTO[].class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertTrue(r.getBody().length >= 1);
+        assertTrue(r.getBody()[0].isError());
+    }
+
+    @Test
+    void testDatabasePersistence_RecordsAccumulateAcrossRequests() {
+        restTemplate.postForEntity(base + "/add",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+        restTemplate.postForEntity(base + "/compare",
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+        restTemplate.postForEntity(base + "/convert",
+            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        // Verify directly in DB using repository
+        assertEquals(3, repository.count());
     }
 }
