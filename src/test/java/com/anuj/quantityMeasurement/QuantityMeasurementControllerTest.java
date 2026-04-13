@@ -1,10 +1,10 @@
 package com.anuj.quantityMeasurement;
 
+import com.anuj.quantityMeasurement.model.*;
 import com.anuj.quantityMeasurement.Controller.QuantityMeasurementController;
-import com.anuj.quantityMeasurement.model.QuantityDTO;
-import com.anuj.quantityMeasurement.model.QuantityInputDTO;
-import com.anuj.quantityMeasurement.model.QuantityMeasurementDTO;
+import com.anuj.quantityMeasurement.security.JwtAuthenticationFilter;
 import com.anuj.quantityMeasurement.service.IQuantityMeasurementService;
+import com.anuj.quantityMeasurement.service.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,14 +26,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(QuantityMeasurementController.class)
 class QuantityMeasurementControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc       mockMvc;
+    @Autowired private ObjectMapper  objectMapper;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @MockBean private IQuantityMeasurementService service;
 
-    @MockBean
-    private IQuantityMeasurementService service;
+    @MockBean private JwtService          jwtService;
+    @MockBean private UserDetailsService  userDetailsService;
 
     private QuantityInputDTO input(double v1, String u1, String t1,
                                    double v2, String u2, String t2) {
@@ -55,7 +55,7 @@ class QuantityMeasurementControllerTest {
         mockMvc.perform(
                 post("/api/v1/quantities/compare")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .with(csrf())   
+                    .with(csrf())
                     .content(objectMapper.writeValueAsString(
                         input(1.0, "FEET", "LengthUnit",
                               12.0, "INCHES", "LengthUnit"))))
@@ -79,7 +79,7 @@ class QuantityMeasurementControllerTest {
         mockMvc.perform(
                 post("/api/v1/quantities/add")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .with(csrf())   
+                    .with(csrf())
                     .content(objectMapper.writeValueAsString(
                         input(1.0, "FEET", "LengthUnit",
                               12.0, "INCHES", "LengthUnit"))))
@@ -99,28 +99,12 @@ class QuantityMeasurementControllerTest {
         mockMvc.perform(
                 post("/api/v1/quantities/compare")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .with(csrf())   
+                    .with(csrf())
                     .content(objectMapper.writeValueAsString(badInput)))
                .andExpect(status().isBadRequest());
 
         Mockito.verify(service, Mockito.never())
                .compareQuantities(Mockito.any(), Mockito.any());
-    }
-
-    @Test
-    @WithMockUser
-    void testDivide_ServiceThrowsArithmetic_Returns500() throws Exception {
-        Mockito.when(service.divideQuantities(Mockito.any(), Mockito.any()))
-               .thenThrow(new ArithmeticException("Divide by zero"));
-
-        mockMvc.perform(
-                post("/api/v1/quantities/divide")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .with(csrf())   
-                    .content(objectMapper.writeValueAsString(
-                        input(1.0, "FEET", "LengthUnit",
-                              0.0, "INCHES", "LengthUnit"))))
-               .andExpect(status().isInternalServerError());
     }
 
     @Test
@@ -136,7 +120,7 @@ class QuantityMeasurementControllerTest {
         mockMvc.perform(
                 post("/api/v1/quantities/convert")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .with(csrf())   
+                    .with(csrf())
                     .content(objectMapper.writeValueAsString(
                         input(1.0, "FEET", "LengthUnit",
                               0.0, "INCHES", "LengthUnit"))))
@@ -144,6 +128,21 @@ class QuantityMeasurementControllerTest {
                .andExpect(jsonPath("$.resultValue").value(12.0));
     }
 
+    @Test
+    @WithMockUser
+    void testDivide_ServiceThrowsArithmetic_Returns500() throws Exception {
+        Mockito.when(service.divideQuantities(Mockito.any(), Mockito.any()))
+               .thenThrow(new ArithmeticException("Divide by zero"));
+
+        mockMvc.perform(
+                post("/api/v1/quantities/divide")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .with(csrf())
+                    .content(objectMapper.writeValueAsString(
+                        input(1.0, "FEET", "LengthUnit",
+                              0.0, "INCHES", "LengthUnit"))))
+               .andExpect(status().isInternalServerError());
+    }
 
     @Test
     @WithMockUser

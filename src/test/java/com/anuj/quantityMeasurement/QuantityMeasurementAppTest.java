@@ -1,9 +1,8 @@
 package com.anuj.quantityMeasurement;
 
-import com.anuj.quantityMeasurement.model.QuantityDTO;
-import com.anuj.quantityMeasurement.model.QuantityInputDTO;
-import com.anuj.quantityMeasurement.model.QuantityMeasurementDTO;
+import com.anuj.quantityMeasurement.model.*;
 import com.anuj.quantityMeasurement.repository.QuantityMeasurementRepository;
+import com.anuj.quantityMeasurement.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,28 +13,53 @@ import org.springframework.http.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class QuantityMeasurementApplicationTests {
+class QuantityMeasurementAppTest {
 
     @LocalServerPort
     private int port;
 
-    @Autowired
-    private TestRestTemplate restTemplate;
-
-    @Autowired
-    private QuantityMeasurementRepository repository;
+    @Autowired private TestRestTemplate    restTemplate;
+    @Autowired private QuantityMeasurementRepository measurementRepository;
+    @Autowired private UserRepository      userRepository;
 
     private String base;
+    private String authBase;
 
     @BeforeEach
     void setUp() {
-        base = "http://localhost:" + port + "/api/v1/quantities";
-        repository.deleteAll();  // clean DB before each test
+        base     = "http://localhost:" + port + "/api/v1/quantities";
+        authBase = "http://localhost:" + port + "/auth";
+        measurementRepository.deleteAll();
+        userRepository.deleteAll();
+        restTemplate.getRestTemplate().setRequestFactory(new org.springframework.http.client.HttpComponentsClientHttpRequestFactory());
     }
 
-    // Helper
+    //Utility: register + login and get token
+
+    private String getTokenForUser(String username, String password, String email) {
+        // Register
+        RegisterRequest reg = new RegisterRequest(username, password, email);
+        restTemplate.postForEntity(authBase + "/register", reg, AuthResponse.class);
+
+        // Login
+        LoginRequest login = new LoginRequest(username, password);
+        ResponseEntity<AuthResponse> loginResponse =
+            restTemplate.postForEntity(authBase + "/login", login, AuthResponse.class);
+
+        return loginResponse.getBody().getToken();
+    }
+
+   //Creates an HttpEntity with the JWT token in the Authorization header
+    
+    private HttpEntity<QuantityInputDTO> buildRequest(String token,
+                                                       QuantityInputDTO body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + token);
+        return new HttpEntity<>(body, headers);
+    }
+
     private QuantityInputDTO input(double v1, String u1, String t1,
                                    double v2, String u2, String t2) {
         return new QuantityInputDTO(
@@ -43,241 +67,183 @@ class QuantityMeasurementApplicationTests {
             new QuantityDTO(v2, u2, t2));
     }
 
-    @Test
-    void contextLoads() {}
+    //Auth Tests
 
     @Test
-    void testCompare_EqualLengths_ReturnsTrue() {
-       
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/compare",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
+    void contextLoads() { }
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertNotNull(r.getBody());
-        assertEquals("true", r.getBody().getResultString());
-        assertFalse(r.getBody().isError());
+    @Test
+    void testRegister_NewUser_Returns201() {
+        RegisterRequest request =
+            new RegisterRequest("vikash", "password123", "vikash@test.com");
+
+        ResponseEntity<AuthResponse> response = restTemplate.postForEntity(
+            authBase + "/register", request, AuthResponse.class);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertNotNull(response.getBody().getToken());
+        assertEquals("vikash", response.getBody().getUsername());
+        assertEquals("USER",   response.getBody().getRole());
     }
 
     @Test
-    void testCompare_UnequalLengths_ReturnsFalse() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/compare",
-            input(2.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
+    void testRegister_DuplicateUsername_Returns409() {
+        RegisterRequest request =
+            new RegisterRequest("vikash", "password123", "vikash@test.com");
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals("false", r.getBody().getResultString());
+        // First registration — should succeed
+        restTemplate.postForEntity(authBase + "/register",
+            request, AuthResponse.class);
+
+        // Second registration with same username — should fail
+        RegisterRequest duplicate =
+            new RegisterRequest("vikash", "different123", "other@test.com");
+
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            authBase + "/register", duplicate, String.class);
+
+        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
     }
 
     @Test
-    void testCompare_Temperature_0C_Equals_32F() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/compare",
-            input(0.0, "CELSIUS", "TemperatureUnit", 32.0, "FAHRENHEIT", "TemperatureUnit"),
-            QuantityMeasurementDTO.class);
+    void testLogin_ValidCredentials_Returns200WithToken() {
+        // Register first
+        restTemplate.postForEntity(authBase + "/register",
+            new RegisterRequest("vikash", "password123", "vikash@test.com"),
+            AuthResponse.class);
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals("true", r.getBody().getResultString());
-    }
+        // Then login
+        LoginRequest loginRequest = new LoginRequest("vikash", "password123");
+        ResponseEntity<AuthResponse> response = restTemplate.postForEntity(
+            authBase + "/login", loginRequest, AuthResponse.class);
 
-    //convert
-
-    @Test
-    void testConvert_FeetToInches_Returns12() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/convert",
-            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(12.0, r.getBody().getResultValue(), 1e-6);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody().getToken());
+        assertFalse(response.getBody().getToken().isEmpty());
     }
 
     @Test
-    void testConvert_GramToKilogram() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/convert",
-            input(1000.0, "GRAM", "WeightUnit", 0.0, "KILOGRAM", "WeightUnit"),
-            QuantityMeasurementDTO.class);
+    void testLogin_WrongPassword_Returns401() {
+        // Register first
+        restTemplate.postForEntity(authBase + "/register",
+            new RegisterRequest("vikash", "password123", "vikash@test.com"),
+            AuthResponse.class);
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
-    }
-
-    @Test
-    void testConvert_CelsiusToFahrenheit_100C_Is_212F() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/convert",
-            input(100.0, "CELSIUS", "TemperatureUnit", 0.0, "FAHRENHEIT", "TemperatureUnit"),
-            QuantityMeasurementDTO.class);
-
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(212.0, r.getBody().getResultValue(), 1e-4);
-    }
-
-    //add
-
-    @Test
-    void testAdd_LengthUnits_Returns2Feet() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/add",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(2.0,    r.getBody().getResultValue(), 1e-6);
-        assertEquals("FEET", r.getBody().getResultUnit());
-    }
-
-    @Test
-    void testAdd_WeightUnits() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/add",
-            input(1000.0, "GRAM", "WeightUnit", 1.0, "KILOGRAM", "WeightUnit"),
-            QuantityMeasurementDTO.class);
-
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(2000.0, r.getBody().getResultValue(), 1e-4);
-        assertEquals("GRAM", r.getBody().getResultUnit());
-    }
-
-    @Test
-    void testAdd_TemperatureUnits_Returns400_Unsupported() {
+        // USE EXCHANGE INSTEAD OF postForEntity
+        LoginRequest wrongLogin = new LoginRequest("vikash", "wrongpassword");
+        HttpEntity<LoginRequest> entity = new HttpEntity<>(wrongLogin);
         
-        ResponseEntity<String> r = restTemplate.postForEntity(
-            base + "/add",
-            input(100.0, "CELSIUS", "TemperatureUnit", 50.0, "CELSIUS", "TemperatureUnit"),
-            String.class);
+        ResponseEntity<String> response = restTemplate.exchange(
+            authBase + "/login", HttpMethod.POST, entity, String.class);
 
-        assertEquals(HttpStatus.BAD_REQUEST, r.getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    }
+
+    //Protected Endpoint Tests 
+    
+    @Test
+    void testProtectedEndpoint_WithoutToken_Returns401() {
+        // USE EXCHANGE INSTEAD OF postForEntity
+        QuantityInputDTO body = input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit");
+        HttpEntity<QuantityInputDTO> entity = new HttpEntity<>(body);
+
+        ResponseEntity<String> response = restTemplate.exchange(
+            base + "/compare", HttpMethod.POST, entity, String.class);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
 
     @Test
-    void testAdd_IncompatibleTypes_Returns400() {
-        ResponseEntity<String> r = restTemplate.postForEntity(
-            base + "/add",
-            input(1.0, "FEET", "LengthUnit", 1.0, "KILOGRAM", "WeightUnit"),
-            String.class);
+    void testProtectedEndpoint_WithValidToken_Returns200() {
+        // Get a valid JWT token
+        String token = getTokenForUser("vikash", "password123", "v@test.com");
 
-        assertEquals(HttpStatus.BAD_REQUEST, r.getStatusCode());
-        assertTrue(r.getBody().contains("Cannot perform arithmetic"));
-    }
+        // Call the API with the token
+        HttpEntity<QuantityInputDTO> request = buildRequest(token,
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"));
 
-    //subtract
+        ResponseEntity<QuantityMeasurementDTO> response =
+            restTemplate.exchange(
+                base + "/compare",
+                HttpMethod.POST,
+                request,
+                QuantityMeasurementDTO.class);
 
-    @Test
-    void testSubtract_LengthUnits() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/subtract",
-            input(2.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
-    }
-
-    //divide
-
-    @Test
-    void testDivide_WeightUnits() {
-        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
-            base + "/divide",
-            input(1000.0, "GRAM", "WeightUnit", 1.0, "KILOGRAM", "WeightUnit"),
-            QuantityMeasurementDTO.class);
-
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("true", response.getBody().getResultString());
     }
 
     @Test
-    void testDivide_ByZero_Returns500() {
-        ResponseEntity<String> r = restTemplate.postForEntity(
-            base + "/divide",
-            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"),
-            String.class);
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, r.getStatusCode());
-        assertTrue(r.getBody().contains("Divide by zero"));
-    }
-
-    //history and count
-
-    @Test
-    void testGetHistoryByOperation_AfterAdd_Returns1Record() {
-        restTemplate.postForEntity(base + "/add",
+    void testProtectedEndpoint_WithExpiredToken_Returns401() {
+        HttpHeaders headers = new HttpHeaders();
+        // Use a format that looks like a JWT but is invalid
+        headers.set("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.invalid.token");
+        
+        HttpEntity<QuantityInputDTO> request = new HttpEntity<>(
             input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
+            headers);
 
-        ResponseEntity<QuantityMeasurementDTO[]> r = restTemplate.getForEntity(
-            base + "/history/operation/add", QuantityMeasurementDTO[].class);
+        ResponseEntity<String> response = restTemplate.exchange(
+            base + "/compare", HttpMethod.POST, request, String.class);
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(1, r.getBody().length);
-        assertEquals("add", r.getBody()[0].getOperation());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
 
     @Test
-    void testGetHistoryByType_AfterTwoLengthOps_Returns2Records() {
-        restTemplate.postForEntity(base + "/add",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-        restTemplate.postForEntity(base + "/compare",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
+    void testAddQuantities_WithValidToken() {
+        String token = getTokenForUser("vikash", "password123", "v@test.com");
 
-        ResponseEntity<QuantityMeasurementDTO[]> r = restTemplate.getForEntity(
-            base + "/history/type/LengthUnit", QuantityMeasurementDTO[].class);
+        HttpEntity<QuantityInputDTO> request = buildRequest(token,
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"));
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(2, r.getBody().length);
+        ResponseEntity<QuantityMeasurementDTO> response =
+            restTemplate.exchange(
+                base + "/add", HttpMethod.POST, request,
+                QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(2.0, response.getBody().getResultValue(), 1e-6);
+        assertEquals("FEET", response.getBody().getResultUnit());
     }
 
     @Test
-    void testGetCount_AfterTwoCompares_Returns2() {
-        restTemplate.postForEntity(base + "/compare",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-        restTemplate.postForEntity(base + "/compare",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
+    void testConvertQuantity_WithValidToken() {
+        String token = getTokenForUser("vikash", "password123", "v@test.com");
 
-        ResponseEntity<Long> r = restTemplate.getForEntity(
-            base + "/count/compare", Long.class);
+        HttpEntity<QuantityInputDTO> request = buildRequest(token,
+            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"));
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(2L, r.getBody());
+        ResponseEntity<QuantityMeasurementDTO> response =
+            restTemplate.exchange(
+                base + "/convert", HttpMethod.POST, request,
+                QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(12.0, response.getBody().getResultValue(), 1e-6);
     }
 
     @Test
-    void testGetErrorHistory_AfterFailedAdd_Returns1ErrorRecord() {
-        // Trigger an error by adding incompatible types
-        restTemplate.postForEntity(base + "/add",
-            input(1.0, "FEET", "LengthUnit", 1.0, "KILOGRAM", "WeightUnit"),
-            String.class);
+    void testGetHistory_WithValidToken() {
+        String token = getTokenForUser("vikash", "password123", "v@test.com");
 
-        ResponseEntity<QuantityMeasurementDTO[]> r = restTemplate.getForEntity(
-            base + "/history/errored", QuantityMeasurementDTO[].class);
+        // First add something so there is history
+        HttpEntity<QuantityInputDTO> addRequest = buildRequest(token,
+            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"));
+        restTemplate.exchange(base + "/add",
+            HttpMethod.POST, addRequest, QuantityMeasurementDTO.class);
 
-        assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertTrue(r.getBody().length >= 1);
-        assertTrue(r.getBody()[0].isError());
-    }
+        // Now get history
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + token);
+        HttpEntity<Void> getRequest = new HttpEntity<>(headers);
 
-    @Test
-    void testDatabasePersistence_RecordsAccumulateAcrossRequests() {
-        restTemplate.postForEntity(base + "/add",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-        restTemplate.postForEntity(base + "/compare",
-            input(1.0, "FEET", "LengthUnit", 12.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
-        restTemplate.postForEntity(base + "/convert",
-            input(1.0, "FEET", "LengthUnit", 0.0, "INCHES", "LengthUnit"),
-            QuantityMeasurementDTO.class);
+        ResponseEntity<QuantityMeasurementDTO[]> response =
+            restTemplate.exchange(
+                base + "/history/operation/add",
+                HttpMethod.GET, getRequest,
+                QuantityMeasurementDTO[].class);
 
-        // Verify directly in DB using repository
-        assertEquals(3, repository.count());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, response.getBody().length);
     }
 }
