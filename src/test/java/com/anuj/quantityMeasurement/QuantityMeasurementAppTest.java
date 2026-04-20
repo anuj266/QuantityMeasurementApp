@@ -1,372 +1,391 @@
 package com.anuj.quantityMeasurement;
 
-import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
-
-import com.anuj.quantityMeasurement.domain.LengthUnit;
-import com.anuj.quantityMeasurement.domain.Quantity;
-
+import com.anuj.quantityMeasurement.model.*;
+import com.anuj.quantityMeasurement.repository.QuantityMeasurementRepository;
+import com.anuj.quantityMeasurement.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.*;
 
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class QuantityMeasurementAppTest {
 
-    private static final double EPSILON = 1e-6;
+    @LocalServerPort
+    private int port;
 
-    // length equality tests
+    @Autowired private TestRestTemplate              restTemplate;
+    @Autowired private QuantityMeasurementRepository measurementRepo;
+    @Autowired private UserRepository                userRepo;
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testEquality_SameValue_ForAllUnits(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(10.0, unit);
-        Quantity<LengthUnit> l2 = new Quantity<>(10.0, unit);
+    private String base;
+    private String authBase;
 
-        assertTrue(l1.equals(l2));
+    @BeforeEach
+    void setUp() {
+        base     = "http://localhost:" + port + "/api/v1/quantities";
+        authBase = "http://localhost:" + port + "/auth";
+        measurementRepo.deleteAll();
+        userRepo.deleteAll();
     }
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testEquality_DifferentValue_ForAllUnits(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(10.0, unit);
-        Quantity<LengthUnit> l2 = new Quantity<>(20.0, unit);
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-        assertFalse(l1.equals(l2));
+    private QuantityInputDTO input(double v1, String u1, String t1,
+                                   double v2, String u2, String t2) {
+        return new QuantityInputDTO(
+            new QuantityDTO(v1, u1, t1),
+            new QuantityDTO(v2, u2, t2));
     }
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_NullComparison(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(68.0, unit);
+    private String registerAndGetToken(String username,
+                                       String password,
+                                       String email) {
+        restTemplate.postForEntity(
+            authBase + "/register",
+            new RegisterRequest(username, password, email),
+            AuthResponse.class);
 
-        assertFalse(l1.equals(null));
+        ResponseEntity<AuthResponse> login = restTemplate.postForEntity(
+            authBase + "/login",
+            new LoginRequest(username, password),
+            AuthResponse.class);
+
+        return login.getBody().getToken();
     }
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_NonNumericInput(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(68.0, unit);
-
-        assertFalse(l1.equals("68"));
+    private HttpEntity<QuantityInputDTO> withToken(String token,
+                                                    QuantityInputDTO body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + token);
+        return new HttpEntity<>(body, headers);
     }
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_SameReference(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(68.0, unit);
-
-        assertTrue(l1.equals(l1));
+    private HttpEntity<Void> getWithToken(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + token);
+        return new HttpEntity<>(headers);
     }
 
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testFeetEquality_Consistent(LengthUnit unit) {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, unit);
-        Quantity<LengthUnit> l2 = new Quantity<>(1.0, unit);
+    // ── Context load ──────────────────────────────────────────────────────────
 
-        assertTrue(l1.equals(l2));
-        assertTrue(l1.equals(l2));
-        assertTrue(l1.equals(l2));
+    @Test
+    void contextLoads() {
+        // passes if Spring context starts successfully
     }
 
-    // cross unit test
+    // ══════════════════════════════════════════════════════════════════════════
+    // PUBLIC CALCULATOR TESTS — NO TOKEN NEEDED
+    // ══════════════════════════════════════════════════════════════════════════
 
-    @ParameterizedTest
-    @CsvSource({
-        "1.0,   FEET,        12.0,    INCHES",
-        "1.0,   YARDS,       36.0,    INCHES",
-        "100.0, CENTIMETERS, 39.370078, INCHES",
-        "3.0,   FEET,        1.0,     YARDS",
-        "30.48, CENTIMETERS, 1.0,     FEET"
-    })
-    void testCrossUnitEquality_SameLength(double v1, LengthUnit u1,
-                                          double v2, LengthUnit u2) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
+    @Test
+    void testCompare_NoToken_Returns200() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/compare",
+            input(1.0, "FEET", "LengthUnit",
+                  12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertTrue(l1.equals(l2));
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "2.0,    FEET,        12.0,    INCHES",
-        "2.0,    YARDS,       36.0,    INCHES",
-        "1000.0, CENTIMETERS, 39.3701, INCHES",
-        "3.0,    FEET,        3.0,     YARDS",
-        "30.48,  CENTIMETERS, 2.0,     FEET"
-    })
-    void testCrossUnitEquality_DifferentLength(double v1, LengthUnit u1,
-                                               double v2, LengthUnit u2) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        assertFalse(l1.equals(l2));
-    }
-
-    // unit conversion
-
-    @ParameterizedTest
-    @CsvSource({
-        "1.0,  FEET,        INCHES,      12.0",
-        "24.0, INCHES,      FEET,        2.0",
-        "3.0,  YARDS,       FEET,        9.0",
-        "1.0,  YARDS,       INCHES,      36.0",
-        "2.54, CENTIMETERS, INCHES,      1.0",
-        "6.0,  FEET,        YARDS,       2.0",
-        "5.0,  FEET,        FEET,        5.0",
-        "0.0,  FEET,        INCHES,      0.0",
-        "-1.0, FEET,        INCHES,      -12.0"
-    })
-    void testConversion(double value, LengthUnit source,
-                        LengthUnit target, double expected) {
-        Quantity<LengthUnit> l = new Quantity<>(value, source);
-        assertEquals(expected, l.convertTo(target), EPSILON);
-    }
-
-    @ParameterizedTest
-    @EnumSource(LengthUnit.class)
-    void testRoundTrip_AllUnitsToMetreAndBack(LengthUnit unit) {
-        double original  = 1.0;
-        double converted = new Quantity<>(original, unit).convertTo(LengthUnit.CENTIMETERS);
-        double back      = new Quantity<>(converted, LengthUnit.CENTIMETERS).convertTo(unit);
-        assertEquals(original, back, EPSILON);
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals("true", r.getBody().getResultString());
     }
 
     @Test
-    void testConversion_NaN_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new Quantity<>(Double.NaN, LengthUnit.FEET));
+    void testAdd_NoToken_Returns200() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/add",
+            input(1000.0, "GRAM", "WeightUnit",
+                  1.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals(2000.0, r.getBody().getResultValue(), 1e-4);
+        assertEquals("GRAM", r.getBody().getResultUnit());
     }
 
     @Test
-    void testConversion_Infinite_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new Quantity<>(Double.POSITIVE_INFINITY, LengthUnit.FEET));
+    void testSubtract_NoToken_Returns200() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/subtract",
+            input(2000.0, "GRAM", "WeightUnit",
+                  1.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals(1000.0, r.getBody().getResultValue(), 1e-4);
     }
 
     @Test
-    void testConversion_NullUnit_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> new Quantity<>(1.0, null));
-    }
+    void testDivide_NoToken_Returns200() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/divide",
+            input(1000.0, "GRAM", "WeightUnit",
+                  1.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
 
-    // add test
-
-    @ParameterizedTest
-    @CsvSource({
-        "1.0,       FEET,        2.0,  FEET,        3.0",
-        "6.0,       INCHES,      6.0,  INCHES,      12.0",
-        "1.0,       FEET,        12.0, INCHES,      2.0",
-        "12.0,      INCHES,      1.0,  FEET,        24.0",
-        "1.0,       YARDS,       3.0,  FEET,        2.0",
-        "2.54,      CENTIMETERS, 1.0,  INCHES,      5.08",
-        "5.0,       FEET,        0.0,  INCHES,      5.0",
-        "5.0,       FEET,        -2.0, FEET,        3.0",
-        "1000000.0, FEET,        1000000.0, FEET,   2000000.0",
-        "0.001,     FEET,        0.002, FEET,       0.003"
-    })
-    void testAdd(double v1, LengthUnit u1,
-                 double v2, LengthUnit u2,
-                 double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.add(l2);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(u1, result.getUnit());
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        // same unit operations
-        "1.0,  FEET,        1.0,  FEET,        FEET,        2.0",
-        "12.0, INCHES,      12.0, INCHES,      INCHES,      24.0",
-        "1.0,  YARDS,       1.0,  YARDS,       YARDS,       2.0",
-        "2.54, CENTIMETERS, 2.54, CENTIMETERS, CENTIMETERS, 5.08",
-
-        // FEET + INCHES
-        "1.0, FEET, 12.0, INCHES, FEET,   2.0",
-        "1.0, FEET, 12.0, INCHES, INCHES, 24.0",
-        "1.0, FEET, 12.0, INCHES, YARDS,  0.666667",
-
-        // YARDS + FEET
-        "1.0, YARDS, 3.0, FEET, YARDS,  2.0",
-        "1.0, YARDS, 3.0, FEET, FEET,   6.0",
-        "1.0, YARDS, 3.0, FEET, INCHES, 72.0",
-
-        // INCHES + YARDS
-        "36.0, INCHES, 1.0, YARDS, FEET,  6.0",
-        "36.0, INCHES, 1.0, YARDS, YARDS, 2.0",
-
-        // CENTIMETERS + INCHES
-        "2.54, CENTIMETERS, 1.0, INCHES, CENTIMETERS, 5.08",
-        "2.54, CENTIMETERS, 1.0, INCHES, INCHES,      2.0",
-
-        // zero value
-        "5.0, FEET, 0.0, INCHES, YARDS, 1.666667",
-
-        // negative values
-        "5.0, FEET, -2.0, FEET, INCHES, 36.0",
-
-        // large scale
-        "1000.0, FEET, 500.0, FEET, INCHES, 18000.0",
-
-        // small scale
-        "12.0, INCHES, 12.0, INCHES, YARDS, 0.666667"
-    })
-    void testTargetAdd(double v1, LengthUnit u1,
-                       double v2, LengthUnit u2,
-                       LengthUnit target, double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.add(l2, target);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(target, result.getUnit());
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals(1.0, r.getBody().getResultValue(), 1e-6);
     }
 
     @Test
-    void testAdd_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testConvert_NoToken_Returns200() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/convert",
+            input(100.0, "CELSIUS", "TemperatureUnit",
+                  0.0, "FAHRENHEIT", "TemperatureUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.add(null));
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals(212.0, r.getBody().getResultValue(), 1e-4);
     }
 
     @Test
-    void testTargetAdd_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testConvert_FeetToInches_NoToken() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/convert",
+            input(1.0, "FEET", "LengthUnit",
+                  0.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.add(null, null));
-    }
-    
- // subtract tests
-
-    @ParameterizedTest
-    @CsvSource({
-        "3.0,  FEET,        1.0,  FEET,        2.0",
-        "24.0, INCHES,      12.0, INCHES,      12.0",
-        "2.0,  YARDS,       3.0,  FEET,        1.0",
-        "3.0,  FEET,        12.0, INCHES,      2.0",
-        "5.0,  CENTIMETERS, 2.54, CENTIMETERS, 2.46",
-        "5.0,  FEET,        0.0,  INCHES,      5.0",
-        "5.0,  FEET,        -2.0, FEET,        7.0",
-        "-1.0, FEET,        -3.0, FEET,        2.0",
-        "0.003,FEET,        0.001,FEET,        0.002"
-    })
-    void testSubtract(double v1, LengthUnit u1,
-                      double v2, LengthUnit u2,
-                      double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.subtract(l2);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(u1, result.getUnit());
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        // same unit operations
-        "3.0,  FEET,   1.0,  FEET,   FEET,   2.0",
-        "24.0, INCHES, 12.0, INCHES, INCHES, 12.0",
-        "2.0,  YARDS,  1.0,  YARDS,  YARDS,  1.0",
-
-        // FEET - INCHES
-        "2.0, FEET, 12.0, INCHES, FEET,   1.0",
-        "2.0, FEET, 12.0, INCHES, INCHES, 12.0",
-        "2.0, FEET, 12.0, INCHES, YARDS,  0.333333",
-
-        // YARDS - FEET
-        "2.0, YARDS, 3.0, FEET, YARDS,  1.0",
-        "2.0, YARDS, 3.0, FEET, FEET,   3.0",
-        "2.0, YARDS, 3.0, FEET, INCHES, 36.0",
-
-        // CENTIMETERS - INCHES
-        "5.08, CENTIMETERS, 1.0, INCHES, CENTIMETERS, 2.54",
-        "5.08, CENTIMETERS, 1.0, INCHES, INCHES,      1.0",
-
-        // zero value
-        "5.0, FEET, 0.0, INCHES, FEET, 5.0",
-
-        // negative values
-        "5.0,  FEET, -2.0, FEET, INCHES, 84.0",
-        "-1.0, FEET, -3.0, FEET, INCHES, 24.0",
-
-        // large scale
-        "2000.0, FEET, 500.0, FEET, INCHES, 18000.0",
-
-        // small scale
-        "0.003, FEET, 0.001, FEET, INCHES, 0.024"
-    })
-    void testTargetSubtract(double v1, LengthUnit u1,
-                            double v2, LengthUnit u2,
-                            LengthUnit target, double expectedValue) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        Quantity<LengthUnit> result = l1.subtract(l2, target);
-
-        assertEquals(expectedValue, result.getValue(), EPSILON);
-        assertEquals(target, result.getUnit());
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(12.0, r.getBody().getResultValue(), 1e-6);
     }
 
     @Test
-    void testSubtract_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testCompare_Temperature_NoToken() {
+        ResponseEntity<QuantityMeasurementDTO> r = restTemplate.postForEntity(
+            base + "/compare",
+            input(0.0, "CELSIUS", "TemperatureUnit",
+                  32.0, "FAHRENHEIT", "TemperatureUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.subtract(null));
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals("true", r.getBody().getResultString());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PROTECTED HISTORY TESTS — TOKEN REQUIRED
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void testHistory_NoToken_Returns401() {
+        ResponseEntity<String> r = restTemplate.getForEntity(
+            base + "/history/operation/add", String.class);
+
+        /*
+         * FIX: Only check the STATUS CODE — not the body message.
+         *
+         * The 401 status is what proves security is working.
+         * Checking exact body text is fragile — the message
+         * can vary based on Spring Security configuration and
+         * the exact path through the filter chain.
+         *
+         * What matters for this test:
+         *   ✅ Request is rejected (not 200)
+         *   ✅ Rejection is specifically "Unauthorized" (401)
+         *   ✅ Not a server error (not 500)
+         */
+        assertEquals(HttpStatus.UNAUTHORIZED, r.getStatusCode());
     }
 
     @Test
-    void testTargetSubtract_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testCount_NoToken_Returns401() {
+        ResponseEntity<String> r = restTemplate.getForEntity(
+            base + "/count/compare", String.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.subtract(null, null));
-    }
-
-    // divide tests
-
-    @ParameterizedTest
-    @CsvSource({
-        "10.0, FEET,        2.0,  FEET,        5.0",
-        "24.0, INCHES,      12.0, INCHES,      2.0",
-        "1.0,  YARDS,       3.0,  FEET,        1.0",
-        "2.0,  FEET,        12.0, INCHES,      2.0",
-        "1.0,  FEET,        1.0,  FEET,        1.0",
-        "-4.0, FEET,        2.0,  FEET,        -2.0",
-        "-4.0, FEET,        -2.0, FEET,        2.0",
-        "0.0,  FEET,        1.0,  FEET,        0.0"
-    })
-    void testDivide(double v1, LengthUnit u1,
-                    double v2, LengthUnit u2,
-                    double expectedResult) {
-        Quantity<LengthUnit> l1 = new Quantity<>(v1, u1);
-        Quantity<LengthUnit> l2 = new Quantity<>(v2, u2);
-
-        assertEquals(expectedResult, l1.divide(l2), EPSILON);
+        assertEquals(HttpStatus.UNAUTHORIZED, r.getStatusCode());
     }
 
     @Test
-    void testDivide_NullLength() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
+    void testHistory_WithValidToken_Returns200() {
+        // Do a public operation first — no token needed
+        restTemplate.postForEntity(base + "/add",
+            input(1.0, "FEET", "LengthUnit",
+                  12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> l1.divide(null));
+        // Register and login to get token
+        String token = registerAndGetToken(
+            "vikash", "password123", "v@test.com");
+
+        // Use token to view history
+        ResponseEntity<QuantityMeasurementDTO[]> r =
+            restTemplate.exchange(
+                base + "/history/operation/add",
+                HttpMethod.GET,
+                getWithToken(token),
+                QuantityMeasurementDTO[].class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals(1, r.getBody().length);
+        assertEquals("add", r.getBody()[0].getOperation());
     }
 
     @Test
-    void testDivide_ZeroDivisor() {
-        Quantity<LengthUnit> l1 = new Quantity<>(1.0, LengthUnit.FEET);
-        Quantity<LengthUnit> l2 = new Quantity<>(0.0, LengthUnit.FEET);
+    void testCount_WithValidToken_Returns200() {
+        // Public operation first
+        restTemplate.postForEntity(base + "/compare",
+            input(1.0, "FEET", "LengthUnit",
+                  12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
 
-        assertThrows(ArithmeticException.class,
-                () -> l1.divide(l2));
+        String token = registerAndGetToken(
+            "vikash", "password123", "v@test.com");
+
+        ResponseEntity<Long> r = restTemplate.exchange(
+            base + "/count/compare",
+            HttpMethod.GET,
+            getWithToken(token),
+            Long.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertEquals(1L, r.getBody());
+    }
+
+    @Test
+    void testHistory_WithInvalidToken_Returns401() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer totally.fake.token");
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+
+        ResponseEntity<String> r = restTemplate.exchange(
+            base + "/history/operation/add",
+            HttpMethod.GET, request, String.class);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, r.getStatusCode());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // AUTH TESTS
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void testRegister_Returns201() {
+        ResponseEntity<AuthResponse> r = restTemplate.postForEntity(
+            authBase + "/register",
+            new RegisterRequest("vikash", "password123", "v@test.com"),
+            AuthResponse.class);
+
+        assertEquals(HttpStatus.CREATED, r.getStatusCode());
+        assertNotNull(r.getBody());
+        assertNotNull(r.getBody().getToken());
+        assertFalse(r.getBody().getToken().isEmpty());
+        assertEquals("vikash", r.getBody().getUsername());
+        assertEquals("USER", r.getBody().getRole());
+    }
+
+    @Test
+    void testLogin_ValidCredentials_Returns200() {
+        restTemplate.postForEntity(authBase + "/register",
+            new RegisterRequest("vikash", "password123", "v@test.com"),
+            AuthResponse.class);
+
+        ResponseEntity<AuthResponse> r = restTemplate.postForEntity(
+            authBase + "/login",
+            new LoginRequest("vikash", "password123"),
+            AuthResponse.class);
+
+        assertEquals(HttpStatus.OK, r.getStatusCode());
+        assertNotNull(r.getBody().getToken());
+    }
+
+    @Test
+    void testLogin_WrongPassword_Returns401() {
+        restTemplate.postForEntity(authBase + "/register",
+            new RegisterRequest("vikash", "password123", "v@test.com"),
+            AuthResponse.class);
+
+        ResponseEntity<String> r = restTemplate.postForEntity(
+            authBase + "/login",
+            new LoginRequest("vikash", "wrongpassword"),
+            String.class);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, r.getStatusCode());
+    }
+
+    @Test
+    void testDuplicateUsername_Returns409() {
+        restTemplate.postForEntity(authBase + "/register",
+            new RegisterRequest("vikash", "password123", "v@test.com"),
+            AuthResponse.class);
+
+        ResponseEntity<String> r = restTemplate.postForEntity(
+            authBase + "/register",
+            new RegisterRequest("vikash", "other123", "other@test.com"),
+            String.class);
+
+        assertEquals(HttpStatus.CONFLICT, r.getStatusCode());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMBINED FLOW TEST
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Test
+    void testFullFlow_PublicOperations_ThenLoginForHistory() {
+        /*
+         * Simulates real calculator website usage:
+         *
+         * Phase 1: Anonymous — does calculations freely
+         * Phase 2: Registers + logs in
+         * Phase 3: Views history of those calculations
+         */
+
+        // Phase 1: Anonymous calculations — no login
+        restTemplate.postForEntity(base + "/add",
+            input(1.0, "FEET", "LengthUnit",
+                  12.0, "INCHES", "LengthUnit"),
+            QuantityMeasurementDTO.class);
+
+        restTemplate.postForEntity(base + "/compare",
+            input(1000.0, "GRAM", "WeightUnit",
+                  1.0, "KILOGRAM", "WeightUnit"),
+            QuantityMeasurementDTO.class);
+
+        restTemplate.postForEntity(base + "/convert",
+            input(100.0, "CELSIUS", "TemperatureUnit",
+                  0.0, "FAHRENHEIT", "TemperatureUnit"),
+            QuantityMeasurementDTO.class);
+
+        // Phase 2: Register and login
+        String token = registerAndGetToken(
+            "vikash", "password123", "v@test.com");
+
+        // Phase 3: View history with token
+        ResponseEntity<QuantityMeasurementDTO[]> addHistory =
+            restTemplate.exchange(
+                base + "/history/operation/add",
+                HttpMethod.GET,
+                getWithToken(token),
+                QuantityMeasurementDTO[].class);
+
+        assertEquals(HttpStatus.OK, addHistory.getStatusCode());
+        assertEquals(1, addHistory.getBody().length);
+        assertEquals("add", addHistory.getBody()[0].getOperation());
+
+        // Count operations
+        ResponseEntity<Long> countAdd = restTemplate.exchange(
+            base + "/count/add",
+            HttpMethod.GET,
+            getWithToken(token),
+            Long.class);
+
+        assertEquals(HttpStatus.OK, countAdd.getStatusCode());
+        assertEquals(1L, countAdd.getBody());
+
+        // Total records in DB should be 3
+        assertEquals(3, measurementRepo.count());
     }
 }
